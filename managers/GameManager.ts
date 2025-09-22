@@ -13,7 +13,7 @@ import {
     ELEVATOR_MANAGER_BONUS,
     BASE_MARKET_MANAGER_COST,
     MARKET_MANAGER_BONUS,
-    SKILL_POINT_MILESTONES,
+    MANAGER_SKILL_POINT_INTERVAL,
     GEOLOGIST_EYE_CHANCE,
     GEOLOGIST_EYE_MULTIPLIER,
     DEEPER_VEINS_STORAGE_BONUS,
@@ -500,10 +500,13 @@ export class GameManager {
         }
     }
     
-    private checkAndAwardSkillPoint(manager: { level: number, skillPoints: number }, newLevel: number) {
-        const currentMilestonesPassed = SKILL_POINT_MILESTONES.filter(m => manager.level < m && newLevel >= m).length;
-        if (currentMilestonesPassed > 0) {
-            manager.skillPoints += currentMilestonesPassed;
+    private checkAndAwardSkillPoint(manager: { managerLevel: number; skillPoints: number }, newLevel: number) {
+        const previousThreshold = Math.floor(manager.managerLevel / MANAGER_SKILL_POINT_INTERVAL);
+        const newThreshold = Math.floor(newLevel / MANAGER_SKILL_POINT_INTERVAL);
+        const pointsEarned = newThreshold - previousThreshold;
+
+        if (pointsEarned > 0) {
+            manager.skillPoints += pointsEarned;
         }
     }
 

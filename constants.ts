@@ -28,7 +28,7 @@ export const BASE_MARKET_MANAGER_COST = 30000;
 export const MARKET_MANAGER_BONUS = 0.01; // 1% value boost per level
 
 // Skill System Constants
-export const SKILL_POINT_MILESTONES = [10, 25, 50, 75, 100];
+export const MANAGER_SKILL_POINT_INTERVAL = 10;
 
 // Mineshaft Skill Effects
 export const GEOLOGIST_EYE_CHANCE = 0.02; // 2%
