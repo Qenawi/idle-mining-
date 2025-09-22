@@ -5,6 +5,7 @@ interface WelcomeBackModalProps {
     earnings: number;
     timeOffline: number;
     onClose: () => void;
+    formatNumber: (num: number) => string;
 }
 
 const formatDuration = (totalSeconds: number): string => {
@@ -21,7 +22,7 @@ const formatDuration = (totalSeconds: number): string => {
     return `${s}s`;
 };
 
-const WelcomeBackModal: React.FC<WelcomeBackModalProps> = ({ earnings, timeOffline, onClose }) => {
+const WelcomeBackModal: React.FC<WelcomeBackModalProps> = ({ earnings, timeOffline, onClose, formatNumber }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-lg shadow-2xl p-8 max-w-sm w-full border-2 border-yellow-400 transform scale-100 transition-transform duration-300">
@@ -33,7 +34,7 @@ const WelcomeBackModal: React.FC<WelcomeBackModalProps> = ({ earnings, timeOffli
                 <div className="flex items-center justify-center bg-gray-900 px-4 py-3 rounded-lg mb-8">
                     <CoinIcon className="w-10 h-10 text-yellow-400 mr-4" />
                     <span className="text-4xl font-mono font-bold text-green-400">
-                        ${earnings.toLocaleString()}
+                        ${formatNumber(earnings)}
                     </span>
                 </div>
                 <button

@@ -23,9 +23,12 @@ const UpgradeButton: React.FC<UpgradeButtonProps> = ({ onClick, cost, disabled, 
         <button
             onClick={handleClick}
             disabled={disabled}
-            className={`w-full flex items-center justify-center px-1 py-1 bg-green-600 text-white font-bold rounded-md border-b-2 border-green-800 hover:bg-green-500 disabled:bg-gray-600 disabled:border-gray-800 disabled:cursor-not-allowed transform hover:-translate-y-0.5 transition-all duration-150 text-xs shadow-md ${clickedClass}`}
+            className={`w-full flex flex-col items-center justify-center px-2 py-2 bg-green-600 text-white font-bold rounded-md border-b-4 border-green-800 hover:bg-green-500 disabled:bg-gray-600 disabled:border-gray-800 disabled:cursor-not-allowed transform hover:-translate-y-0.5 transition-all duration-150 text-sm shadow-md ${clickedClass}`}
         >
-            UPGRADE (${formatNumber(cost)})
+             <div className="flex items-center">
+                <span>UPGRADE</span>
+            </div>
+            <span className="text-xs opacity-90">(${formatNumber(cost)})</span>
         </button>
     );
 };

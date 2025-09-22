@@ -3,31 +3,30 @@ import { MinerIcon } from './icons';
 
 const Miner: React.FC = () => {
     return (
-        <div className="relative w-20 h-20 miner-body">
+        <div className="relative w-20 h-20 miner-container">
             <style>
                 {`
-                    @keyframes mine-animation {
-                        0% { transform: rotate(10deg); }
-                        50% { transform: rotate(-35deg); }
-                        100% { transform: rotate(10deg); }
+                    @keyframes mine-swing-animation {
+                        0% { transform: rotate(15deg); }
+                        50% { transform: rotate(-30deg); }
+                        100% { transform: rotate(15deg); }
                     }
-                    .miner-pickaxe {
-                        animation: mine-animation 1.5s ease-in-out infinite;
-                        transform-origin: bottom right;
+                    .miner-container .miner-arm-pickaxe {
+                        animation: mine-swing-animation 1.2s ease-in-out infinite;
+                        transform-origin: 38px 36px; /* Approx shoulder point */
                     }
 
                     @keyframes miner-bob-animation {
                         0%, 100% { transform: translateY(0px); }
-                        50% { transform: translateY(-4px); }
+                        50% { transform: translateY(-3px); }
                     }
-                    .miner-body {
-                        animation: miner-bob-animation 2.5s ease-in-out infinite;
+                    .miner-container .miner-body-group {
+                        animation: miner-bob-animation 2.2s ease-in-out infinite;
                     }
                 `}
             </style>
-            <div className="absolute bottom-0 right-0 miner-pickaxe">
-                <MinerIcon className="w-16 h-16" />
-            </div>
+            {/* The actual character icon */}
+            <MinerIcon className="w-full h-full" />
         </div>
     );
 };

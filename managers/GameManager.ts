@@ -1,4 +1,4 @@
-import { GameState, MineShaftState, ElevatorState, ElevatorStatus, WarehouseState } from '../types';
+import { GameState, MineShaftState, ElevatorState, ElevatorStatus, MarketState, MineShaftSkill, MarketSkill, UpgradeAmount, ResourceMap, CartState, ElevatorSkill, CartStatus, CartSkill } from '../types';
 import {
     INITIAL_GAME_STATE,
     BASE_SHAFT_COST,
@@ -9,48 +9,82 @@ import {
     MANAGER_BONUS_MULTIPLIER,
     SHAFT_POSITION_Y_OFFSET,
     SHAFT_POSITION_Y_INCREMENT,
+    BASE_ELEVATOR_MANAGER_COST,
+    ELEVATOR_MANAGER_BONUS,
+    BASE_MARKET_MANAGER_COST,
+    MARKET_MANAGER_BONUS,
+    SKILL_POINT_MILESTONES,
+    GEOLOGIST_EYE_CHANCE,
+    GEOLOGIST_EYE_MULTIPLIER,
+    DEEPER_VEINS_STORAGE_BONUS,
+    ADVANCED_MACHINERY_PROD_BONUS,
+    EXPRESS_LOAD_TIME_REDUCTION,
+    LIGHTWEIGHT_MATERIALS_SPEED_BONUS,
+    REINFORCED_FRAME_CAPACITY_BONUS,
+    MASTER_NEGOTIATOR_CHANCE,
+    MASTER_NEGOTIATOR_MULTIPLIER,
+    BASE_CART_COST,
+    CART_ACTION_TIME,
+    CART_SPEED,
+    CART_TRAVEL_DISTANCE,
+    BASE_CART_MANAGER_COST,
+    CART_MANAGER_BONUS,
+    OVERCLOCKED_PUMPS_SPEED_BONUS,
+    REINFORCED_PIPES_CAPACITY_BONUS,
+    MATTER_DUPLICATOR_CHANCE,
+    MAX_SHAFTS,
+    MARKET_INSIGHT_VALUE_BONUS,
 } from '../constants';
 import { saveGame, loadGame, clearSave } from '../services/gameService';
+import { Resource } from '../services/resourceService';
 
 // Constants that were in App.tsx
-const WAREHOUSE_SELL_RATE = 50; // resources per second
 const ELEVATOR_SPEED = 100; // pixels per second
 const ELEVATOR_ACTION_TIME = 1000; // ms to collect/deposit
 
+// Visual positioning constants - should match Tailwind CSS classes
+const SHAFT_HEIGHT_PX = 128; // From `min-h-[8rem]` in MineShaft.tsx
+const ELEVATOR_HEIGHT_PX = 56; // From `h-14` in Elevator.tsx
+const ELEVATOR_STOP_Y_OFFSET = Math.round((SHAFT_HEIGHT_PX / 2) - (ELEVATOR_HEIGHT_PX / 2)); // Vertically center elevator on shaft
+
 export class GameManager {
     private gameState: GameState;
+    private resourceMap: Map<string, Resource>;
     public offlineEarnings: number = 0;
     public timeOffline: number = 0;
 
     constructor() {
         const savedGameData = loadGame();
         if (savedGameData) {
+            this.gameState = savedGameData.gameState;
+        } else {
+            this.gameState = JSON.parse(JSON.stringify(INITIAL_GAME_STATE));
+        }
+
+        this.resourceMap = new Map(this.gameState.resources.map(r => [r.id, r]));
+
+        if (savedGameData) {
             const timeOffline = (Date.now() - savedGameData.lastSavedTimestamp) / 1000;
             if (timeOffline > 5) {
                 this.timeOffline = timeOffline;
-                const earnings = this.calculateOfflineEarnings(savedGameData.gameState, timeOffline);
+                const earnings = this.calculateOfflineEarnings(this.gameState, timeOffline);
                 this.offlineEarnings = earnings;
-                this.gameState = {
-                    ...savedGameData.gameState,
-                    cash: savedGameData.gameState.cash + earnings,
-                };
-            } else {
-                this.gameState = savedGameData.gameState;
+                this.gameState.cash += earnings;
             }
-        } else {
-            this.gameState = JSON.parse(JSON.stringify(INITIAL_GAME_STATE));
         }
     }
 
     private calculateOfflineEarnings(state: GameState, timeOffline: number): number {
-        const { mineShafts: savedShafts, elevator: savedElevator } = state;
-        const totalProduction = savedShafts.reduce((sum, shaft) => sum + this.getShaftProduction(shaft), 0);
-        const avgTravelTimePerShaft = (SHAFT_POSITION_Y_INCREMENT / ELEVATOR_SPEED);
-        const elevatorCycleTime = (savedShafts.length * avgTravelTimePerShaft * 2) + (savedShafts.length * (ELEVATOR_ACTION_TIME / 1000) * 2);
-        const elevatorThroughput = elevatorCycleTime > 0 ? this.getElevatorCapacity(savedElevator) / elevatorCycleTime : Infinity;
-        const warehouseThroughput = WAREHOUSE_SELL_RATE;
-        const effectiveIncome = Math.min(totalProduction, elevatorThroughput, warehouseThroughput);
-        return Math.floor(effectiveIncome * timeOffline);
+        const idleCashPerSecond = this.getIdleIncome();
+        return Math.floor(idleCashPerSecond * timeOffline);
+    }
+    
+    private getResourceValue(resourceId: string): number {
+        return this.resourceMap.get(resourceId)?.value || 0;
+    }
+
+    private getTotalResourceCount(resourceMap: ResourceMap): number {
+        return Object.values(resourceMap).reduce((sum, count) => sum + count, 0);
     }
 
     public getState = (): GameState => {
@@ -63,170 +97,549 @@ export class GameManager {
 
     public resetGame = (): void => {
         clearSave();
-        this.gameState = JSON.parse(JSON.stringify(INITIAL_GAME_STATE));
+        const freshState = JSON.parse(JSON.stringify(INITIAL_GAME_STATE));
+        this.gameState = freshState;
+        this.resourceMap = new Map(this.gameState.resources.map(r => [r.id, r]));
     }
     
     // --- Getters for calculated values ---
     public getShaftUpgradeCost = (level: number) => BASE_SHAFT_COST * Math.pow(UPGRADE_COST_MULTIPLIER, level);
     public getManagerUpgradeCost = (level: number) => BASE_MANAGER_COST * Math.pow(MANAGER_COST_MULTIPLIER, level);
+    public getElevatorManagerUpgradeCost = (level: number) => BASE_ELEVATOR_MANAGER_COST * Math.pow(MANAGER_COST_MULTIPLIER, level);
+    public getMarketManagerUpgradeCost = (level: number) => BASE_MARKET_MANAGER_COST * Math.pow(MANAGER_COST_MULTIPLIER, level);
+    public getCartManagerUpgradeCost = (level: number) => BASE_CART_MANAGER_COST * Math.pow(MANAGER_COST_MULTIPLIER, level);
+
     public getManagerBonusMultiplier = () => MANAGER_BONUS_MULTIPLIER;
     public getElevatorUpgradeCost = (level: number) => 173 * Math.pow(UPGRADE_COST_MULTIPLIER, level - 1);
-    public getWarehouseUpgradeCost = (level: number) => 230 * Math.pow(UPGRADE_COST_MULTIPLIER, level - 1);
+    public getMarketUpgradeCost = (level: number) => 230 * Math.pow(UPGRADE_COST_MULTIPLIER, level - 1);
+    public getCartUpgradeCost = (level: number) => BASE_CART_COST * Math.pow(UPGRADE_COST_MULTIPLIER, level);
     public getNewShaftCost = (shaftCount: number) => 625 * Math.pow(SHAFT_COST_MULTIPLIER, shaftCount - 1);
-    public getShaftProduction = (shaft: MineShaftState) => (10 * shaft.level) * (1 + shaft.managerLevel * MANAGER_BONUS_MULTIPLIER);
-    public getElevatorCapacity = (elevator: ElevatorState) => 100 * elevator.level;
-    public getWarehouseCapacity = (warehouse: WarehouseState) => 200 * warehouse.level;
-    public getIdleIncome = (): number => {
-        const { mineShafts, elevator } = this.gameState;
-        const totalProduction = mineShafts.reduce((sum, shaft) => sum + this.getShaftProduction(shaft), 0);
-        const avgTravelTimePerShaft = (SHAFT_POSITION_Y_INCREMENT / ELEVATOR_SPEED);
-        const elevatorCycleTime = (mineShafts.length * avgTravelTimePerShaft * 2) + (mineShafts.length * (ELEVATOR_ACTION_TIME / 1000) * 2);
-        const elevatorThroughput = elevatorCycleTime > 0 ? this.getElevatorCapacity(elevator) / elevatorCycleTime : Infinity;
-        const warehouseThroughput = WAREHOUSE_SELL_RATE;
-        return Math.min(totalProduction, elevatorThroughput, warehouseThroughput);
+    
+    public getShaftProduction = (shaft: MineShaftState): number => {
+        const baseProduction = 10 * Math.pow(10, shaft.id);
+        let production = (baseProduction * shaft.level) * (1 + shaft.managerLevel * MANAGER_BONUS_MULTIPLIER);
+        if (shaft.unlockedSkills.includes(MineShaftSkill.ADVANCED_MACHINERY)) {
+            production *= ADVANCED_MACHINERY_PROD_BONUS;
+        }
+        return production;
     }
+    
+    public getShaftCapacity = (shaft: MineShaftState): number => {
+        const baseCapacity = 1000 * Math.pow(10, shaft.id);
+        let capacity = baseCapacity * shaft.level;
+        if (shaft.unlockedSkills.includes(MineShaftSkill.DEEPER_VEINS)) {
+            capacity *= DEEPER_VEINS_STORAGE_BONUS;
+        }
+        return capacity;
+    }
+
+    public getElevatorCapacity = (elevator: ElevatorState): number => {
+        let capacity = 100 * elevator.level;
+        if (elevator.unlockedSkills.includes(ElevatorSkill.REINFORCED_FRAME)) {
+            capacity *= REINFORCED_FRAME_CAPACITY_BONUS;
+        }
+        return capacity;
+    }
+
+    public getElevatorStorageCapacity = (elevator: ElevatorState): number => 1000 * elevator.level;
+    public getCartCapacity = (cart: CartState): number => {
+        let capacity = 150 * cart.level * (1 + cart.managerLevel * CART_MANAGER_BONUS);
+        if (cart.unlockedSkills.includes(CartSkill.REINFORCED_PIPES)) {
+            capacity *= REINFORCED_PIPES_CAPACITY_BONUS;
+        }
+        return capacity;
+    }
+    
+    private getCartSpeed = (cart: CartState): number => {
+        let speed = CART_SPEED;
+        if (cart.unlockedSkills.includes(CartSkill.OVERCLOCKED_PUMPS)) {
+            speed *= OVERCLOCKED_PUMPS_SPEED_BONUS;
+        }
+        return speed;
+    }
+
+    public getElevatorSpeed = (elevator: ElevatorState): number => {
+        let speed = ELEVATOR_SPEED * (1 + elevator.managerLevel * ELEVATOR_MANAGER_BONUS);
+        if (elevator.unlockedSkills.includes(ElevatorSkill.LIGHTWEIGHT_MATERIALS)) {
+            speed *= LIGHTWEIGHT_MATERIALS_SPEED_BONUS;
+        }
+        return speed;
+    }
+    
+    private getElevatorActionTime = (elevator: ElevatorState): number => {
+        let time = ELEVATOR_ACTION_TIME;
+        if (elevator.unlockedSkills.includes(ElevatorSkill.EXPRESS_LOAD)) {
+            time *= EXPRESS_LOAD_TIME_REDUCTION;
+        }
+        return time;
+    }
+    
+    public getMarketValueMultiplier = (market: MarketState): number => {
+        let multiplier = 1 + (market.level - 1) * 0.01; // 1% per level above 1
+        multiplier += market.managerLevel * MARKET_MANAGER_BONUS;
+        
+        if (market.unlockedSkills.includes(MarketSkill.EXPANDED_STORAGE)) {
+            multiplier *= MARKET_INSIGHT_VALUE_BONUS;
+        }
+        return multiplier;
+    }
+
+    public getIdleIncome = (): number => {
+        const { mineShafts, elevator, cart } = this.gameState;
+        
+        const totalProductionUnits = mineShafts.reduce((sum, shaft) => sum + this.getShaftProduction(shaft), 0);
+        const productionValuePerSecond = mineShafts.reduce((sum, shaft) => {
+            const production = this.getShaftProduction(shaft);
+            const value = this.getResourceValue(shaft.resourceId);
+            return sum + (production * value);
+        }, 0);
+        const avgResourceValue = totalProductionUnits > 0 ? productionValuePerSecond / totalProductionUnits : 0;
+        
+        const elevatorActionTime = this.getElevatorActionTime(elevator) / 1000;
+        const avgTravelTimePerShaft = (SHAFT_POSITION_Y_INCREMENT / this.getElevatorSpeed(elevator));
+        const elevatorCycleTime = (mineShafts.length * avgTravelTimePerShaft * 2) + (mineShafts.length * elevatorActionTime * 2);
+        const elevatorThroughputUnits = elevatorCycleTime > 0 ? this.getElevatorCapacity(elevator) / elevatorCycleTime : Infinity;
+        
+        const cartActionTime = (CART_ACTION_TIME * 2) / 1000;
+        const cartTravelTime = (CART_TRAVEL_DISTANCE / this.getCartSpeed(cart)) * 2;
+        const cartCycleTime = cartActionTime + cartTravelTime;
+        const cartThroughputUnits = cartCycleTime > 0 ? this.getCartCapacity(cart) / cartCycleTime : Infinity;
+
+        const minThroughputUnits = Math.min(totalProductionUnits, elevatorThroughputUnits, cartThroughputUnits);
+
+        return minThroughputUnits * avgResourceValue;
+    }
+
+    // --- Bulk Upgrade Calculations ---
+    private calculateBulkCost(startLevel: number, count: number, costFn: (level: number) => number, costMultiplier: number): number {
+        if (count <= 0) return 0;
+        if (count === 1) return costFn(startLevel);
+
+        const firstUpgradeCost = costFn(startLevel);
+        if (costMultiplier === 1) return firstUpgradeCost * count;
+        
+        return firstUpgradeCost * (1 - Math.pow(costMultiplier, count)) / (1 - costMultiplier);
+    }
+
+    private calculateMaxAffordableLevels(startLevel: number, cash: number, costFn: (level: number) => number, costMultiplier: number): { levels: number, cost: number } {
+        const firstUpgradeCost = costFn(startLevel);
+        if (cash < firstUpgradeCost) return { levels: 0, cost: 0 };
+        if (costMultiplier === 1) {
+            const levels = Math.floor(cash / firstUpgradeCost);
+            return { levels, cost: levels * firstUpgradeCost };
+        }
+        
+        const ratio = costMultiplier;
+        let numLevels = Math.floor(Math.log((cash * (ratio - 1) / firstUpgradeCost) + 1) / Math.log(ratio));
+        
+        if (numLevels <= 0) {
+            numLevels = cash >= firstUpgradeCost ? 1 : 0;
+        }
+    
+        const totalCost = this.calculateBulkCost(startLevel, numLevels, costFn, costMultiplier);
+        return { levels: numLevels, cost: totalCost };
+    }
+
+    private getUpgradeInfo(
+        currentLevel: number, 
+        amount: UpgradeAmount,
+        cash: number, 
+        costFn: (level: number) => number, 
+        costMultiplier: number
+    ): { levels: number, cost: number } {
+        if (amount === 'MAX') {
+            return this.calculateMaxAffordableLevels(currentLevel, cash, costFn, costMultiplier);
+        } else {
+            const cost = this.calculateBulkCost(currentLevel, amount, costFn, costMultiplier);
+            return { levels: amount, cost };
+        }
+    }
+
+    public getShaftUpgradeInfo(shaft: MineShaftState, amount: UpgradeAmount, cash: number) {
+        return this.getUpgradeInfo(shaft.level, amount, cash, this.getShaftUpgradeCost, UPGRADE_COST_MULTIPLIER);
+    }
+
+    public getElevatorUpgradeInfo(elevator: ElevatorState, amount: UpgradeAmount, cash: number) {
+        return this.getUpgradeInfo(elevator.level, amount, cash, (l) => this.getElevatorUpgradeCost(l), UPGRADE_COST_MULTIPLIER);
+    }
+    
+    public getMarketUpgradeInfo(market: MarketState, amount: UpgradeAmount, cash: number) {
+        return this.getUpgradeInfo(market.level, amount, cash, (l) => this.getMarketUpgradeCost(l), UPGRADE_COST_MULTIPLIER);
+    }
+
+    public getCartUpgradeInfo(cart: CartState, amount: UpgradeAmount, cash: number) {
+        return this.getUpgradeInfo(cart.level, amount, cash, this.getCartUpgradeCost, UPGRADE_COST_MULTIPLIER);
+    }
+
+    public getManagerUpgradeInfo(manager: { managerLevel: number }, amount: UpgradeAmount, cash: number) {
+        return this.getUpgradeInfo(manager.managerLevel, amount, cash, this.getManagerUpgradeCost, MANAGER_COST_MULTIPLIER);
+    }
+
+    public getElevatorManagerUpgradeInfo(manager: { managerLevel: number }, amount: UpgradeAmount, cash: number) {
+        return this.getUpgradeInfo(manager.managerLevel, amount, cash, this.getElevatorManagerUpgradeCost, MANAGER_COST_MULTIPLIER);
+    }
+
+    public getMarketManagerUpgradeInfo(manager: { managerLevel: number }, amount: UpgradeAmount, cash: number) {
+        return this.getUpgradeInfo(manager.managerLevel, amount, cash, this.getMarketManagerUpgradeCost, MANAGER_COST_MULTIPLIER);
+    }
+
+    public getCartManagerUpgradeInfo(manager: { managerLevel: number }, amount: UpgradeAmount, cash: number) {
+        return this.getUpgradeInfo(manager.managerLevel, amount, cash, this.getCartManagerUpgradeCost, MANAGER_COST_MULTIPLIER);
+    }
+
 
     // --- Game Logic Update ---
     public update(deltaTime: number): void {
-        const newState: GameState = this.gameState;
+        const state = this.gameState;
 
-        // Reset one-time signals at the start of the tick
-        if (newState.warehouse.lastDepositAmount) {
-            newState.warehouse.lastDepositAmount = 0;
+        if (state.market.lastDepositAmount) {
+            state.market.lastDepositAmount = 0;
         }
 
-        // Shaft Production
-        newState.mineShafts.forEach(shaft => {
+        // --- Shaft Production ---
+        state.mineShafts.forEach(shaft => {
             const production = this.getShaftProduction(shaft);
-            const maxResources = 1000 * shaft.level;
+            const maxResources = this.getShaftCapacity(shaft);
             shaft.resources = Math.min(maxResources, shaft.resources + production * deltaTime);
+
+            if (shaft.unlockedSkills.includes(MineShaftSkill.GEOLOGISTS_EYE) && Math.random() < GEOLOGIST_EYE_CHANCE) {
+                const bonusCash = production * this.getResourceValue(shaft.resourceId) * GEOLOGIST_EYE_MULTIPLIER;
+                state.cash += bonusCash;
+            }
         });
+        
+        // --- Elevator Logic ---
+        this.updateElevator(deltaTime);
+        
+        // --- Cart Logic ---
+        this.updateCart(deltaTime);
 
-        // Warehouse Selling
-        const soldAmount = Math.min(newState.warehouse.resources, WAREHOUSE_SELL_RATE * deltaTime);
-        if (soldAmount > 0) {
-            newState.warehouse.resources -= soldAmount;
-            newState.cash += soldAmount;
-        }
+        this.gameState = state;
+    }
 
-        // Elevator Logic
-        const elevatorCapacity = this.getElevatorCapacity(newState.elevator);
-        switch (newState.elevator.status) {
+    private updateElevator(deltaTime: number): void {
+        const { elevator, mineShafts } = this.gameState;
+        const elevatorCapacity = this.getElevatorCapacity(elevator);
+        const elevatorSpeed = this.getElevatorSpeed(elevator);
+        const elevatorActionTime = this.getElevatorActionTime(elevator);
+        const currentElevatorLoad = this.getTotalResourceCount(elevator.load);
+        
+        switch (elevator.status) {
             case ElevatorStatus.Idle:
-                const targetShaft = newState.mineShafts.find(shaft => shaft.resources > 0);
-                if (targetShaft) {
-                    newState.elevator.targetY = targetShaft.y + 64;
-                    newState.elevator.targetShaftId = targetShaft.id;
-                    newState.elevator.status = ElevatorStatus.MovingDown;
-                } else if (newState.elevator.load > 0) {
-                    newState.elevator.targetY = 0;
-                    newState.elevator.status = ElevatorStatus.MovingUp;
+                const targetShaft = mineShafts.find(shaft => shaft.resources > 0);
+                if (targetShaft && currentElevatorLoad < elevatorCapacity) {
+                    elevator.targetY = targetShaft.y + ELEVATOR_STOP_Y_OFFSET;
+                    elevator.targetShaftId = targetShaft.id;
+                    elevator.status = ElevatorStatus.MovingDown;
+                } else if (currentElevatorLoad > 0) {
+                    elevator.targetY = 0;
+                    elevator.status = ElevatorStatus.MovingUp;
                 }
                 break;
+
             case ElevatorStatus.MovingDown:
-                if (newState.elevator.targetY !== null) {
-                    // FIX: Corrected typo from ELEVator_SPEED to ELEVATOR_SPEED
-                    const moveAmount = ELEVATOR_SPEED * deltaTime;
-                    if (newState.elevator.y + moveAmount >= newState.elevator.targetY) {
-                        newState.elevator.y = newState.elevator.targetY;
-                        const shaft = newState.mineShafts.find(s => s.id === newState.elevator.targetShaftId);
+                if (elevator.targetY !== null) {
+                    const moveAmount = elevatorSpeed * deltaTime;
+                    if (elevator.y + moveAmount >= elevator.targetY) {
+                        elevator.y = elevator.targetY;
+                        const shaft = mineShafts.find(s => s.id === elevator.targetShaftId);
                         if (shaft) {
-                            const collectAmount = Math.min(shaft.resources, elevatorCapacity - newState.elevator.load);
-                            newState.elevator.load += collectAmount;
+                            const spaceInElevator = elevatorCapacity - currentElevatorLoad;
+                            const collectAmount = Math.min(shaft.resources, spaceInElevator);
+                            
+                            elevator.load[shaft.resourceId] = (elevator.load[shaft.resourceId] || 0) + collectAmount;
                             shaft.resources -= collectAmount;
                         }
-                        if (newState.elevator.load >= elevatorCapacity) {
-                            newState.elevator.targetY = 0;
-                            newState.elevator.status = ElevatorStatus.MovingUp;
+
+                        if (this.getTotalResourceCount(elevator.load) >= elevatorCapacity) {
+                            elevator.targetY = 0;
+                            elevator.status = ElevatorStatus.MovingUp;
                         } else {
-                            const currentShaftIndex = newState.mineShafts.findIndex(s => s.id === shaft?.id);
-                            const nextTargetShaft = currentShaftIndex > -1 ? newState.mineShafts.slice(currentShaftIndex + 1).find(s => s.resources > 0) : undefined;
+                            const currentShaftIndex = mineShafts.findIndex(s => s.id === shaft?.id);
+                            const nextTargetShaft = currentShaftIndex > -1 ? mineShafts.slice(currentShaftIndex + 1).find(s => s.resources > 0) : undefined;
                             if (nextTargetShaft) {
-                                newState.elevator.targetY = nextTargetShaft.y + 64;
-                                newState.elevator.targetShaftId = nextTargetShaft.id;
+                                elevator.targetY = nextTargetShaft.y + ELEVATOR_STOP_Y_OFFSET;
+                                elevator.targetShaftId = nextTargetShaft.id;
                             } else {
-                                newState.elevator.targetY = 0;
-                                newState.elevator.status = ElevatorStatus.MovingUp;
+                                elevator.targetY = 0;
+                                elevator.status = ElevatorStatus.MovingUp;
                             }
                         }
                     } else {
-                        newState.elevator.y += moveAmount;
+                        elevator.y += moveAmount;
                     }
                 }
                 break;
+
             case ElevatorStatus.MovingUp:
-                if (newState.elevator.y <= 0) {
-                    newState.elevator.y = 0;
-                    newState.elevator.status = ElevatorStatus.Depositing;
-                    newState.elevator.actionTimer = ELEVATOR_ACTION_TIME;
+                if (elevator.y <= 0) {
+                    elevator.y = 0;
+                    elevator.status = ElevatorStatus.Depositing;
+                    elevator.actionTimer = elevatorActionTime;
                 } else {
-                    newState.elevator.y = Math.max(0, newState.elevator.y - ELEVATOR_SPEED * deltaTime);
+                    elevator.y = Math.max(0, elevator.y - elevatorSpeed * deltaTime);
                 }
                 break;
+
             case ElevatorStatus.Depositing:
-                newState.elevator.actionTimer! -= (deltaTime * 1000);
-                if (newState.elevator.actionTimer! <= 0) {
-                    const warehouseCapacity = this.getWarehouseCapacity(newState.warehouse);
-                    const depositAmount = Math.min(newState.elevator.load, warehouseCapacity - newState.warehouse.resources);
-                    newState.warehouse.resources += depositAmount;
-                    newState.elevator.load -= depositAmount;
-                    newState.warehouse.lastDepositAmount = depositAmount; // Signal for UI
-                    newState.elevator.status = ElevatorStatus.Idle;
+                elevator.actionTimer! -= (deltaTime * 1000);
+                if (elevator.actionTimer! <= 0) {
+                    const storageCapacity = this.getElevatorStorageCapacity(elevator);
+                    const currentStorageLoad = this.getTotalResourceCount(elevator.storage);
+                    let spaceInStorage = storageCapacity - currentStorageLoad;
+                    
+                    for (const resourceId in elevator.load) {
+                        if(spaceInStorage <= 0) break;
+                        const amountToDeposit = Math.min(elevator.load[resourceId], spaceInStorage);
+                        if (amountToDeposit > 0) {
+                            elevator.storage[resourceId] = (elevator.storage[resourceId] || 0) + amountToDeposit;
+                            elevator.load[resourceId] -= amountToDeposit;
+                            if (elevator.load[resourceId] <= 0) {
+                                delete elevator.load[resourceId];
+                            }
+                            spaceInStorage -= amountToDeposit;
+                        }
+                    }
+                    elevator.status = ElevatorStatus.Idle;
                 }
                 break;
-        }
-        this.gameState = newState;
-    }
-    
-    // --- Player Actions ---
-    public upgradeShaft(id: number): void {
-        const shaft = this.gameState.mineShafts.find(s => s.id === id);
-        if (!shaft) return;
-        const cost = this.getShaftUpgradeCost(shaft.level);
-        if (this.gameState.cash >= cost) {
-            this.gameState.cash -= cost;
-            shaft.level += 1;
         }
     }
 
-    public upgradeManager(id: number): void {
+    private updateCart(deltaTime: number): void {
+        const { cart, elevator, market } = this.gameState;
+        const cartSpeed = this.getCartSpeed(cart);
+
+        switch (cart.status) {
+            case CartStatus.Idle:
+                const elevatorHasResources = this.getTotalResourceCount(elevator.storage) > 0;
+                const cartHasSpace = this.getTotalResourceCount(cart.load) < this.getCartCapacity(cart);
+                if (elevatorHasResources && cartHasSpace) {
+                    cart.status = CartStatus.Collecting;
+                    cart.actionTimer = CART_ACTION_TIME;
+                }
+                break;
+
+            case CartStatus.Collecting:
+                cart.actionTimer! -= (deltaTime * 1000);
+                if (cart.actionTimer! <= 0) {
+                    const cartCapacity = this.getCartCapacity(cart);
+                    let spaceInCart = cartCapacity - this.getTotalResourceCount(cart.load);
+
+                    for (const resourceId in elevator.storage) {
+                        if (spaceInCart <= 0) break;
+                        let amountToCollect = Math.min(elevator.storage[resourceId], spaceInCart);
+
+                        if (cart.unlockedSkills.includes(CartSkill.MATTER_DUPLICATOR) && Math.random() < MATTER_DUPLICATOR_CHANCE) {
+                            amountToCollect *= 2;
+                        }
+                        amountToCollect = Math.min(elevator.storage[resourceId], amountToCollect);
+
+                        if (amountToCollect > 0) {
+                            cart.load[resourceId] = (cart.load[resourceId] || 0) + amountToCollect;
+                            elevator.storage[resourceId] -= amountToCollect;
+                            if (elevator.storage[resourceId] <= 0) {
+                                delete elevator.storage[resourceId];
+                            }
+                            spaceInCart -= amountToCollect;
+                        }
+                    }
+                    cart.status = CartStatus.MovingToMarket;
+                }
+                break;
+
+            case CartStatus.MovingToMarket:
+                cart.x += cartSpeed * deltaTime;
+                if (cart.x >= CART_TRAVEL_DISTANCE) {
+                    cart.x = CART_TRAVEL_DISTANCE;
+                    cart.status = CartStatus.Depositing;
+                    cart.actionTimer = CART_ACTION_TIME;
+                }
+                break;
+            
+            case CartStatus.Depositing:
+                const isInstantDeposit = market.unlockedSkills.includes(MarketSkill.EFFICIENT_LOGISTICS);
+                if (!isInstantDeposit) {
+                    cart.actionTimer! -= (deltaTime * 1000);
+                }
+            
+                if (isInstantDeposit || (cart.actionTimer && cart.actionTimer <= 0)) {
+                    let cashGained = 0;
+                    const valueMultiplier = this.getMarketValueMultiplier(market);
+            
+                    for (const resourceId in cart.load) {
+                        const amount = cart.load[resourceId];
+                        if (amount > 0) {
+                            let value = amount * this.getResourceValue(resourceId) * valueMultiplier;
+                            
+                            if (market.unlockedSkills.includes(MarketSkill.MASTER_NEGOTIATOR) && Math.random() < MASTER_NEGOTIATOR_CHANCE) {
+                                value *= MASTER_NEGOTIATOR_MULTIPLIER;
+                            }
+                            cashGained += value;
+                        }
+                    }
+                    
+                    if (cashGained > 0) {
+                        this.gameState.cash += cashGained;
+                        market.lastDepositAmount = cashGained;
+                    }
+                    
+                    cart.load = {};
+                    market.resources = {}; // Ensure market storage is cleared
+                    cart.status = CartStatus.Returning;
+                }
+                break;
+            
+            case CartStatus.Returning:
+                cart.x -= cartSpeed * deltaTime;
+                if (cart.x <= 0) {
+                    cart.x = 0;
+                    cart.status = CartStatus.Idle;
+                }
+                break;
+        }
+    }
+    
+    private checkAndAwardSkillPoint(manager: { level: number, skillPoints: number }, newLevel: number) {
+        const currentMilestonesPassed = SKILL_POINT_MILESTONES.filter(m => manager.level < m && newLevel >= m).length;
+        if (currentMilestonesPassed > 0) {
+            manager.skillPoints += currentMilestonesPassed;
+        }
+    }
+
+    public upgradeShaft(id: number, amount: UpgradeAmount): void {
         const shaft = this.gameState.mineShafts.find(s => s.id === id);
         if (!shaft) return;
-        const cost = this.getManagerUpgradeCost(shaft.managerLevel);
-        if (this.gameState.cash >= cost) {
-            this.gameState.cash -= cost;
-            shaft.managerLevel += 1;
+        const upgradeInfo = this.getShaftUpgradeInfo(shaft, amount, this.gameState.cash);
+        if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+            this.gameState.cash -= upgradeInfo.cost;
+            shaft.level += upgradeInfo.levels;
+        }
+    }
+
+    public upgradeManager(id: number, amount: UpgradeAmount): void {
+        const shaft = this.gameState.mineShafts.find(s => s.id === id);
+        if (!shaft) return;
+        const upgradeInfo = this.getManagerUpgradeInfo(shaft, amount, this.gameState.cash);
+
+        if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+            this.gameState.cash -= upgradeInfo.cost;
+            const newLevel = shaft.managerLevel + upgradeInfo.levels;
+            this.checkAndAwardSkillPoint(shaft, newLevel);
+            shaft.managerLevel = newLevel;
+        }
+    }
+    
+    public unlockShaftSkill(shaftId: number, skill: MineShaftSkill) {
+        const shaft = this.gameState.mineShafts.find(s => s.id === shaftId);
+        if (shaft && shaft.skillPoints > 0 && !shaft.unlockedSkills.includes(skill)) {
+            shaft.skillPoints -= 1;
+            shaft.unlockedSkills.push(skill);
         }
     }
 
     public addShaft(): void {
+        if (this.gameState.mineShafts.length >= MAX_SHAFTS) {
+            return;
+        }
         const cost = this.getNewShaftCost(this.gameState.mineShafts.length);
         if (this.gameState.cash >= cost) {
             this.gameState.cash -= cost;
+            const newShaftId = this.gameState.mineShafts.length;
+            const resourceIndex = Math.min(newShaftId, this.gameState.resources.length - 1);
+
             const newShaft: MineShaftState = {
-                id: this.gameState.mineShafts.length,
+                id: newShaftId,
                 level: 1,
                 resources: 0,
-                y: SHAFT_POSITION_Y_OFFSET + (this.gameState.mineShafts.length * SHAFT_POSITION_Y_INCREMENT),
+                resourceId: this.gameState.resources[resourceIndex].id,
+                y: SHAFT_POSITION_Y_OFFSET + (newShaftId * SHAFT_POSITION_Y_INCREMENT),
                 managerLevel: 0,
+                skillPoints: 0,
+                unlockedSkills: [],
             };
             this.gameState.mineShafts.push(newShaft);
         }
     }
 
-    public upgradeElevator(): void {
-        const cost = this.getElevatorUpgradeCost(this.gameState.elevator.level);
-        if (this.gameState.cash >= cost) {
-            this.gameState.cash -= cost;
-            this.gameState.elevator.level += 1;
+    public upgradeElevator(amount: UpgradeAmount): void {
+        const upgradeInfo = this.getElevatorUpgradeInfo(this.gameState.elevator, amount, this.gameState.cash);
+        if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+            this.gameState.cash -= upgradeInfo.cost;
+            this.gameState.elevator.level += upgradeInfo.levels;
         }
     }
 
-    public upgradeWarehouse(): void {
-        const cost = this.getWarehouseUpgradeCost(this.gameState.warehouse.level);
-        if (this.gameState.cash >= cost) {
-            this.gameState.cash -= cost;
-            this.gameState.warehouse.level += 1;
+    public upgradeElevatorManager(amount: UpgradeAmount): void {
+        const elevator = this.gameState.elevator;
+        const upgradeInfo = this.getElevatorManagerUpgradeInfo(elevator, amount, this.gameState.cash);
+        if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+            this.gameState.cash -= upgradeInfo.cost;
+            const newLevel = elevator.managerLevel + upgradeInfo.levels;
+            this.checkAndAwardSkillPoint(elevator, newLevel);
+            elevator.managerLevel = newLevel;
+        }
+    }
+    
+    public unlockElevatorSkill(skill: ElevatorSkill) {
+        const elevator = this.gameState.elevator;
+        if (elevator.skillPoints > 0 && !elevator.unlockedSkills.includes(skill)) {
+            elevator.skillPoints -= 1;
+            elevator.unlockedSkills.push(skill);
+        }
+    }
+
+    public upgradeMarket(amount: UpgradeAmount): void {
+        const upgradeInfo = this.getMarketUpgradeInfo(this.gameState.market, amount, this.gameState.cash);
+        if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+            this.gameState.cash -= upgradeInfo.cost;
+            this.gameState.market.level += upgradeInfo.levels;
+        }
+    }
+
+    public upgradeMarketManager(amount: UpgradeAmount): void {
+        const market = this.gameState.market;
+        const upgradeInfo = this.getMarketManagerUpgradeInfo(market, amount, this.gameState.cash);
+        if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+            this.gameState.cash -= upgradeInfo.cost;
+            const newLevel = market.managerLevel + upgradeInfo.levels;
+            this.checkAndAwardSkillPoint(market, newLevel);
+            market.managerLevel = newLevel;
+        }
+    }
+    
+    public unlockMarketSkill(skill: MarketSkill) {
+        const market = this.gameState.market;
+        if (market.skillPoints > 0 && !market.unlockedSkills.includes(skill)) {
+            market.skillPoints -= 1;
+            market.unlockedSkills.push(skill);
+        }
+    }
+
+    public upgradeCart(amount: UpgradeAmount): void {
+        const upgradeInfo = this.getCartUpgradeInfo(this.gameState.cart, amount, this.gameState.cash);
+        if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+            this.gameState.cash -= upgradeInfo.cost;
+            this.gameState.cart.level += upgradeInfo.levels;
+        }
+    }
+
+    public upgradeCartManager(amount: UpgradeAmount): void {
+        const cart = this.gameState.cart;
+        const upgradeInfo = this.getCartManagerUpgradeInfo(cart, amount, this.gameState.cash);
+        if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+            this.gameState.cash -= upgradeInfo.cost;
+            const newLevel = cart.managerLevel + upgradeInfo.levels;
+            this.checkAndAwardSkillPoint(cart, newLevel);
+            cart.managerLevel = newLevel;
+        }
+    }
+
+    public unlockCartSkill(skill: CartSkill) {
+        const cart = this.gameState.cart;
+        if (cart.skillPoints > 0 && !cart.unlockedSkills.includes(skill)) {
+            cart.skillPoints -= 1;
+            cart.unlockedSkills.push(skill);
         }
     }
 }

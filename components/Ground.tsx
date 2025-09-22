@@ -1,88 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { WarehouseState, ElevatorState } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { MarketState, ElevatorState, CartState, ResourceMap, CartStatus } from '../types';
 import UpgradeButton from './UpgradeButton';
-import { WarehouseBuildingIcon, TransportWorkerIcon } from './icons';
+import { MarketIcon, ManagerIcon, ResourceIcon } from './icons';
+import { Resource } from '../services/resourceService';
+import Manager from './Manager';
 
-interface GroundProps {
-    warehouse: WarehouseState;
-    elevator: ElevatorState;
-    onUpgradeWarehouse: () => void;
-    onUpgradeElevator: () => void;
-    warehouseUpgradeCost: number;
-    elevatorUpgradeCost: number;
-    formatNumber: (num: number) => string;
-    cash: number;
-}
-
-const getWarehouseIconStyle = (level: number) => {
+const getBuildingIconStyle = (level: number) => {
     if (level >= 50) return 'text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.7)]';
     if (level >= 25) return 'text-slate-300 drop-shadow-[0_0_6px_rgba(203,213,225,0.6)]';
     if (level >= 10) return 'text-orange-300 drop-shadow-[0_0_4px_rgba(251,146,60,0.5)]';
-    return 'text-gray-800';
+    return 'text-gray-900';
 };
 
-const getElevatorLevelStyle = (level: number) => {
-    if (level >= 50) return 'bg-yellow-500 border-yellow-700 text-black';
-    if (level >= 25) return 'bg-slate-400 border-slate-600';
-    if (level >= 10) return 'bg-orange-400 border-orange-600';
-    return 'bg-gray-800 border-black';
+
+const getTotalResourceCount = (resourceMap: ResourceMap): number => {
+    return Object.values(resourceMap).reduce((sum, count) => sum + count, 0);
 };
 
+const CartWorkerIcon = () => (
+    <div className="flex items-end -space-x-2">
+        <div className="w-5 h-5 bg-red-500 border-2 border-black rounded-sm relative -bottom-1"></div>
+        <ManagerIcon className="w-8 h-8 text-gray-300"/>
+    </div>
+);
+
+// FIX: Added GroundProps interface definition.
+interface GroundProps {
+    market: MarketState;
+    elevator: ElevatorState;
+    cart: CartState;
+    onUpgradeMarket: () => void;
+    onUpgradeElevator: () => void;
+    onUpgradeCart: () => void;
+    onOpenMarketManagerDetails: () => void;
+    onOpenElevatorManagerDetails: () => void;
+    onOpenCartManagerDetails: () => void;
+    marketUpgradeCost: number;
+    elevatorUpgradeCost: number;
+    cartUpgradeCost: number;
+    formatNumber: (num: number) => string;
+    cash: number;
+    resources: Resource[];
+}
 
 const Ground: React.FC<GroundProps> = ({ 
-    warehouse, elevator, onUpgradeWarehouse, onUpgradeElevator, 
-    warehouseUpgradeCost, elevatorUpgradeCost, formatNumber, cash 
+    market, elevator, cart,
+    onUpgradeMarket, onUpgradeElevator, onUpgradeCart,
+    onOpenMarketManagerDetails, onOpenElevatorManagerDetails, onOpenCartManagerDetails,
+    marketUpgradeCost, elevatorUpgradeCost, cartUpgradeCost,
+    formatNumber, cash, resources
 }) => {
     const [floatingTexts, setFloatingTexts] = useState<{ id: number; amount: number }[]>([]);
-    const [isTransporting, setIsTransporting] = useState(false);
+    const resourceMap = useMemo(() => new Map(resources.map(r => [r.id, r])), [resources]);
 
     useEffect(() => {
-        if (warehouse.lastDepositAmount && warehouse.lastDepositAmount > 0) {
+        if (market.lastDepositAmount && market.lastDepositAmount > 0) {
             const newText = {
-                id: Date.now() + Math.random(), // Add random to avoid collision
-                amount: warehouse.lastDepositAmount,
+                id: Date.now() + Math.random(),
+                amount: market.lastDepositAmount,
             };
-            // Limit the number of floating texts on screen
             setFloatingTexts(prev => [...prev.slice(-5), newText]);
 
             setTimeout(() => {
                 setFloatingTexts(prev => prev.filter(t => t.id !== newText.id));
-            }, 1500); // Animation duration
+            }, 1500);
         }
-    }, [warehouse.lastDepositAmount]);
-
-    // Effect to sync the transport animation with warehouse activity.
-    // The animation will now only run when there are resources to be sold.
-    useEffect(() => {
-        const shouldBeTransporting = warehouse.resources > 0;
-        if (shouldBeTransporting !== isTransporting) {
-            setIsTransporting(shouldBeTransporting);
-        }
-    }, [warehouse.resources, isTransporting]);
-
+    }, [market.lastDepositAmount]);
+    
+    const totalElevatorStorage = getTotalResourceCount(elevator.storage);
+    const cartProgress = (cart.x / 150) * 100;
 
     return (
-        <div className="h-36 bg-[#c58a64] rounded-lg shadow-lg flex p-2 border-2 border-black/20 relative overflow-hidden">
-             {/* Synced and Smoothed Transport Worker Animation */}
-             {isTransporting && (
-                <div 
-                    className="absolute left-[-3rem] top-1/2 -translate-y-1/2 h-16 w-20 z-0 transport-worker-container"
-                    aria-hidden="true"
-                >
-                    <TransportWorkerIcon className="w-full h-full" />
-                </div>
-             )}
+        <div className="bg-sky-500 grid grid-cols-3 p-2 gap-2 border-b-4 border-black/20 relative">
             <style>
                 {`
-                @keyframes transport-animation {
-                    0% { transform: translateX(0); opacity: 1; }
-                    70% { transform: translateX(120px); opacity: 1; }
-                    100% { transform: translateX(150px); opacity: 0; }
-                }
-                .transport-worker-container {
-                    animation: transport-animation 3s ease-in-out infinite;
-                    animation-delay: 1s;
-                }
                 @keyframes float-up-fade-out {
                     0% { transform: translateY(0); opacity: 1; }
                     100% { transform: translateY(-30px); opacity: 0; }
@@ -93,42 +84,124 @@ const Ground: React.FC<GroundProps> = ({
                 `}
             </style>
             
-            {/* Warehouse Controls */}
-            <div className="w-1/2 pr-1 flex flex-col justify-between items-center text-center z-10 relative">
-                 {/* Floating Text Container */}
-                 <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
-                    {floatingTexts.map(text => (
-                        <div 
-                            key={text.id}
-                            className="deposit-feedback absolute top-1/3 left-1/2 -translate-x-1/2 text-lg font-bold text-green-400 drop-shadow-lg"
-                        >
-                            +{formatNumber(text.amount)}
-                        </div>
-                    ))}
+            {/* Elevator Panel */}
+            <div className="bg-sky-600/50 rounded-lg p-2 flex flex-col items-center space-y-2 text-center">
+                <p className="font-bold text-sm text-black/80 drop-shadow-sm">ELEVATOR</p>
+                <div className="flex-grow flex items-center justify-center w-full space-x-2 h-16">
+                     <div className="w-14 h-14 bg-orange-500 border-4 border-orange-700 rounded-lg shadow-md flex items-center justify-center">
+                        <span className="text-white font-bold text-xs opacity-80 transform -rotate-15">Preview</span>
+                     </div>
+                     <button 
+                        onClick={onOpenElevatorManagerDetails}
+                        className="relative group w-12 h-12 flex items-center justify-center"
+                        aria-label={elevator.managerLevel > 0 ? `View Elevator Manager Details` : `Hire Elevator Manager`}
+                    >
+                        <Manager level={elevator.managerLevel} />
+                         {elevator.managerLevel > 0 && 
+                            <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white">
+                                {elevator.managerLevel}
+                            </span>
+                        }
+                         {elevator.skillPoints > 0 &&
+                            <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center border border-black animate-pulse">
+                                !
+                            </span>
+                        }
+                    </button>
                 </div>
-                <div className="bg-blue-600 text-white text-xs font-bold rounded-sm py-0.5 px-2 w-full shadow-sm">
-                    LEVEL {warehouse.level}
-                </div>
-                <WarehouseBuildingIcon className={`w-10 h-10 transition-all ${getWarehouseIconStyle(warehouse.level)}`} />
-                <UpgradeButton 
-                    onClick={onUpgradeWarehouse} 
-                    cost={warehouseUpgradeCost} 
-                    formatNumber={formatNumber} 
-                    disabled={cash < warehouseUpgradeCost} 
-                />
-            </div>
-
-            {/* Elevator Controls */}
-            <div className="w-1/2 pl-1 flex flex-col justify-between items-center text-center z-10">
-                <p className="font-bold text-xs text-black/70 drop-shadow-sm">ELEVATOR</p>
-                <div className={`w-10 h-10 border-2 rounded flex items-center justify-center text-white font-bold text-lg shadow-inner transition-colors ${getElevatorLevelStyle(elevator.level)}`}>
-                    {elevator.level}
+                <div className="bg-slate-800/80 rounded-md px-3 py-1 text-sm text-white font-semibold w-full shadow-inner">
+                    Storage: {formatNumber(totalElevatorStorage)}
                 </div>
                 <UpgradeButton 
                     onClick={onUpgradeElevator} 
                     cost={elevatorUpgradeCost}
                     disabled={cash < elevatorUpgradeCost}
                     formatNumber={formatNumber}
+                />
+            </div>
+
+            {/* Pipeline Panel */}
+            <div className="bg-sky-600/50 rounded-lg p-2 flex flex-col items-center space-y-2 text-center">
+                 <p className="font-bold text-sm text-black/80 drop-shadow-sm">PIPELINE</p>
+                 <div className="flex-grow w-full flex items-center justify-center h-16 space-x-2">
+                    <div className="flex-grow h-12 bg-slate-700/80 rounded-full relative flex items-center shadow-inner">
+                        <div className="absolute left-3 w-9 h-9 bg-black/80 rounded-md flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                            {cart.level}
+                        </div>
+                        {(cart.status === CartStatus.MovingToMarket || cart.status === CartStatus.Returning) && (
+                             <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-100 ease-linear" style={{ left: `calc(${cartProgress}% * 0.7 + 20%)` }}>
+                                <CartWorkerIcon/>
+                            </div>
+                        )}
+                    </div>
+                    {/* FIX: Added manager button for Pipeline to match other panels and use the provided prop */}
+                    <button 
+                        onClick={onOpenCartManagerDetails}
+                        className="relative group w-12 h-12 flex items-center justify-center flex-shrink-0"
+                        aria-label={cart.managerLevel > 0 ? `View Pipeline Manager Details` : `Hire Pipeline Manager`}
+                    >
+                        <Manager level={cart.managerLevel} />
+                            {cart.managerLevel > 0 && 
+                            <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white">
+                                {cart.managerLevel}
+                            </span>
+                        }
+                            {cart.skillPoints > 0 &&
+                            <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center border border-black animate-pulse">
+                                !
+                            </span>
+                        }
+                    </button>
+                 </div>
+                 <div className="bg-slate-800/80 rounded-md px-3 py-1 text-sm text-white font-semibold w-full shadow-inner">
+                    Load: {formatNumber(getTotalResourceCount(cart.load))}
+                </div>
+                <UpgradeButton
+                    onClick={onUpgradeCart}
+                    cost={cartUpgradeCost}
+                    disabled={cash < cartUpgradeCost}
+                    formatNumber={formatNumber}
+                />
+            </div>
+
+            {/* Market Panel */}
+            <div className="relative w-full h-full bg-sky-600/50 rounded-lg p-2 flex flex-col items-center space-y-2 text-center overflow-hidden">
+                 <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
+                    {floatingTexts.map(text => (
+                        <div key={text.id} className="deposit-feedback absolute top-1/3 left-1/2 -translate-x-1/2 text-lg font-bold text-green-400 drop-shadow-lg">
+                            +${formatNumber(text.amount)}
+                        </div>
+                    ))}
+                </div>
+                <p className="font-bold text-sm text-black/80 drop-shadow-sm">MARKET</p>
+                <div className="flex-grow flex items-center justify-center w-full space-x-2 h-16">
+                    <MarketIcon className={`w-14 h-14 transition-all ${getBuildingIconStyle(market.level)}`} />
+                     <button 
+                        onClick={onOpenMarketManagerDetails}
+                        className="relative group w-12 h-12 flex items-center justify-center"
+                        aria-label={market.managerLevel > 0 ? `View Market Manager Details` : `Hire Market Manager`}
+                    >
+                        <Manager level={market.managerLevel} />
+                         {market.managerLevel > 0 && 
+                            <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white">
+                                {market.managerLevel}
+                            </span>
+                        }
+                         {market.skillPoints > 0 &&
+                            <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center border border-black animate-pulse">
+                                !
+                            </span>
+                        }
+                    </button>
+                </div>
+                 <div className="bg-blue-600 text-white text-sm font-bold rounded-md py-1 px-4 w-full shadow-sm">
+                    LEVEL {market.level}
+                </div>
+                <UpgradeButton 
+                    onClick={onUpgradeMarket} 
+                    cost={marketUpgradeCost} 
+                    formatNumber={formatNumber} 
+                    disabled={cash < marketUpgradeCost} 
                 />
             </div>
         </div>
