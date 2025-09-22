@@ -1,7 +1,0 @@
-# Frontend JavaScript Libraries
-# These dependencies are loaded via CDN using an importmap in index.html.
-# This file is for informational purposes only.
-
-react@^19.1.1
-react-dom@^19.1.1
-@google/genai
