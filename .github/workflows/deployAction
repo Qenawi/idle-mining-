@@ -20,8 +20,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Build with esbuild
-        run: npx esbuild src/index.tsx --bundle --minify --outfile=dist/bundle.js
+      - name: Build with Vite
+        run: npm run build
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
