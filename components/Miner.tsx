@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import southFacingMiner from '../assets/miner/rotations/south.png';
+import northFacingMiner from '../assets/miner/rotations/north.png';
+import eastFacingMiner from '../assets/miner/rotations/east.png';
+import westFacingMiner from '../assets/miner/rotations/west.png';
 import minerMetadata from '../assets/miner/metadata.json';
 
 type MinerMetadata = {
@@ -13,9 +16,16 @@ const Miner: React.FC = () => {
         const typedMetadata = minerMetadata as MinerMetadata;
         const rotationEntries = Object.entries(typedMetadata.frames?.rotations ?? {});
 
-        return rotationEntries.map(([direction, relativePath]) => ({
+        const rotationImageMap: Record<string, string> = {
+            south: southFacingMiner,
+            north: northFacingMiner,
+            east: eastFacingMiner,
+            west: westFacingMiner,
+        };
+
+        return rotationEntries.map(([direction]) => ({
             direction,
-            src: new URL(`../assets/miner/${relativePath}`, import.meta.url).href,
+            src: rotationImageMap[direction] ?? southFacingMiner,
         }));
     }, []);
 
