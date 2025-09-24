@@ -1,4 +1,4 @@
-import { GameState, MineShaftState, ElevatorState, ElevatorStatus, MarketState, MineShaftSkill, MarketSkill, UpgradeAmount, ResourceMap, CartState, ElevatorSkill, CartStatus, CartSkill } from '../types';
+import { GameState, MineShaftState, ElevatorState, ElevatorStatus, MarketState, MineShaftSkill, MarketSkill, UpgradeAmount, ResourceMap, CartState, ElevatorSkill, CartStatus, CartSkill, AutoUpgradeTarget } from '../types';
 import {
     INITIAL_GAME_STATE,
     BASE_SHAFT_COST,
@@ -91,6 +91,10 @@ export class GameManager {
         return this.gameState;
     }
 
+    public getAutoUpgradeTarget = (): AutoUpgradeTarget | null => {
+        return this.gameState.autoUpgradeTarget;
+    }
+
     public saveGame = (): void => {
         saveGame(this.gameState);
     }
@@ -100,6 +104,18 @@ export class GameManager {
         const freshState = JSON.parse(JSON.stringify(INITIAL_GAME_STATE));
         this.gameState = freshState;
         this.resourceMap = new Map(this.gameState.resources.map(r => [r.id, r]));
+    }
+
+    public setAutoUpgradeTarget = (target: AutoUpgradeTarget | null): void => {
+        if (target && target.type === 'mineshaft') {
+            const exists = this.gameState.mineShafts.some(shaft => shaft.id === target.id);
+            if (!exists) {
+                this.gameState.autoUpgradeTarget = null;
+                return;
+            }
+        }
+
+        this.gameState.autoUpgradeTarget = target;
     }
     
     // --- Getters for calculated values ---
@@ -314,7 +330,79 @@ export class GameManager {
         // --- Cart Logic ---
         this.updateCart(deltaTime);
 
+        this.processAutoUpgrade();
+
         this.gameState = state;
+    }
+
+    private processAutoUpgrade(): void {
+        const target = this.gameState.autoUpgradeTarget;
+        if (!target) return;
+
+        switch (target.type) {
+            case 'mineshaft': {
+                const shaft = this.gameState.mineShafts.find(s => s.id === target.id);
+                if (!shaft) {
+                    this.gameState.autoUpgradeTarget = null;
+                    return;
+                }
+
+                if (target.subject === 'level') {
+                    const upgradeInfo = this.getShaftUpgradeInfo(shaft, 1, this.gameState.cash);
+                    if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+                        this.upgradeShaft(shaft.id, 1);
+                    }
+                } else {
+                    const upgradeInfo = this.getManagerUpgradeInfo(shaft, 1, this.gameState.cash);
+                    if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+                        this.upgradeManager(shaft.id, 1);
+                    }
+                }
+                break;
+            }
+            case 'elevator': {
+                if (target.subject === 'level') {
+                    const upgradeInfo = this.getElevatorUpgradeInfo(this.gameState.elevator, 1, this.gameState.cash);
+                    if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+                        this.upgradeElevator(1);
+                    }
+                } else {
+                    const upgradeInfo = this.getElevatorManagerUpgradeInfo(this.gameState.elevator, 1, this.gameState.cash);
+                    if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+                        this.upgradeElevatorManager(1);
+                    }
+                }
+                break;
+            }
+            case 'market': {
+                if (target.subject === 'level') {
+                    const upgradeInfo = this.getMarketUpgradeInfo(this.gameState.market, 1, this.gameState.cash);
+                    if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+                        this.upgradeMarket(1);
+                    }
+                } else {
+                    const upgradeInfo = this.getMarketManagerUpgradeInfo(this.gameState.market, 1, this.gameState.cash);
+                    if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+                        this.upgradeMarketManager(1);
+                    }
+                }
+                break;
+            }
+            case 'cart': {
+                if (target.subject === 'level') {
+                    const upgradeInfo = this.getCartUpgradeInfo(this.gameState.cart, 1, this.gameState.cash);
+                    if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+                        this.upgradeCart(1);
+                    }
+                } else {
+                    const upgradeInfo = this.getCartManagerUpgradeInfo(this.gameState.cart, 1, this.gameState.cash);
+                    if (upgradeInfo.levels > 0 && this.gameState.cash >= upgradeInfo.cost) {
+                        this.upgradeCartManager(1);
+                    }
+                }
+                break;
+            }
+        }
     }
 
     private updateElevator(deltaTime: number): void {

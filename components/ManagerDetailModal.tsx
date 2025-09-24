@@ -14,6 +14,8 @@ interface ManagerDetailModalProps {
     bonusInfo: { description: string; value: string; };
     formatNumber: (num: number) => string;
     cash: number;
+    isAutoUpgradingManager: boolean;
+    onToggleAutoUpgrade: () => void;
 }
 
 const getManagerTitle = (info: ModalManagerInfo) => {
@@ -25,9 +27,10 @@ const getManagerTitle = (info: ModalManagerInfo) => {
     }
 }
 
-const ManagerDetailModal: React.FC<ManagerDetailModalProps> = ({ 
+const ManagerDetailModal: React.FC<ManagerDetailModalProps> = ({
     isOpen, onClose, onUpgrade, onOpenSkills, managerInfo,
-    gameManager, bonusInfo, formatNumber, cash
+    gameManager, bonusInfo, formatNumber, cash,
+    isAutoUpgradingManager, onToggleAutoUpgrade
 }) => {
     const [isUpgrading, setIsUpgrading] = useState(false);
     const [upgradeAmount, setUpgradeAmount] = useState<UpgradeAmount>(1);
@@ -95,7 +98,19 @@ const ManagerDetailModal: React.FC<ManagerDetailModalProps> = ({
                         {!isHire && upgradeInfo.levels > 0 && <span className="ml-1.5 text-xs font-bold bg-yellow-400 text-black rounded px-1.5 py-0.5">+{upgradeInfo.levels}</span>}
                         <span className="ml-2">(${formatNumber(upgradeInfo.cost)})</span>
                     </button>
-                    
+
+                    <button
+                        onClick={onToggleAutoUpgrade}
+                        className={`w-full py-2 text-sm font-bold rounded-lg border transition-colors duration-150 ${
+                            isAutoUpgradingManager
+                                ? 'bg-purple-600 border-purple-400 text-white shadow-md'
+                                : 'bg-black/30 border-black/40 text-gray-200 hover:bg-black/40'
+                        }`}
+                        aria-pressed={isAutoUpgradingManager}
+                    >
+                        {isAutoUpgradingManager ? 'Auto Upgrade Active' : 'Enable Auto Upgrade'}
+                    </button>
+
                     <button
                         onClick={onOpenSkills}
                         disabled={data.managerLevel === 0}

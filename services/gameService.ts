@@ -83,6 +83,10 @@ export const loadGame = (): SavedGame | null => {
                     if (parsed.gameState.cart.unlockedSkills === undefined) parsed.gameState.cart.unlockedSkills = [];
                 }
 
+                if (parsed.gameState.autoUpgradeTarget === undefined) {
+                    parsed.gameState.autoUpgradeTarget = null;
+                }
+
                 return parsed as SavedGame;
             }
         }

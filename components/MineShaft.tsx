@@ -17,13 +17,15 @@ interface MineShaftProps {
     upgradeDisabled: boolean;
     managerBonusMultiplier: number;
     resource: Resource | undefined;
+    isAutoUpgrading: boolean;
+    onToggleAutoUpgrade: () => void;
 }
 
-const MineShaftComponent: React.FC<MineShaftProps> = ({ 
+const MineShaftComponent: React.FC<MineShaftProps> = ({
     shaft, onUpgrade, onOpenManagerDetails,
-    upgradeCost, formatNumber, upgradeDisabled, 
+    upgradeCost, formatNumber, upgradeDisabled,
     managerBonusMultiplier, production, maxResources,
-    resource
+    resource, isAutoUpgrading, onToggleAutoUpgrade
 }) => {
     
     const resourcePercentage = maxResources > 0 ? (shaft.resources / maxResources) * 100 : 0;
@@ -90,6 +92,17 @@ const MineShaftComponent: React.FC<MineShaftProps> = ({
                     disabled={upgradeDisabled}
                     formatNumber={formatNumber}
                 />
+                <button
+                    onClick={onToggleAutoUpgrade}
+                    aria-pressed={isAutoUpgrading}
+                    className={`w-full py-1.5 text-xs font-bold rounded-md border transition-colors duration-150 ${
+                        isAutoUpgrading
+                            ? 'bg-purple-500 text-white border-purple-300 shadow-md'
+                            : 'bg-black/30 text-gray-200 border-black/40 hover:bg-black/40'
+                    }`}
+                >
+                    AUTO {isAutoUpgrading ? 'ON' : 'OFF'}
+                </button>
             </div>
         </div>
     );

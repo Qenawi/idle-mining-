@@ -35,20 +35,28 @@ interface GroundProps {
     onOpenMarketManagerDetails: () => void;
     onOpenElevatorManagerDetails: () => void;
     onOpenCartManagerDetails: () => void;
+    onToggleMarketAutoUpgrade: () => void;
+    onToggleElevatorAutoUpgrade: () => void;
+    onToggleCartAutoUpgrade: () => void;
     marketUpgradeCost: number;
     elevatorUpgradeCost: number;
     cartUpgradeCost: number;
     formatNumber: (num: number) => string;
     cash: number;
     resources: Resource[];
+    isMarketAutoUpgrading: boolean;
+    isElevatorAutoUpgrading: boolean;
+    isCartAutoUpgrading: boolean;
 }
 
-const Ground: React.FC<GroundProps> = ({ 
+const Ground: React.FC<GroundProps> = ({
     market, elevator, cart,
     onUpgradeMarket, onUpgradeElevator, onUpgradeCart,
     onOpenMarketManagerDetails, onOpenElevatorManagerDetails, onOpenCartManagerDetails,
+    onToggleMarketAutoUpgrade, onToggleElevatorAutoUpgrade, onToggleCartAutoUpgrade,
     marketUpgradeCost, elevatorUpgradeCost, cartUpgradeCost,
-    formatNumber, cash, resources
+    formatNumber, cash, resources,
+    isMarketAutoUpgrading, isElevatorAutoUpgrading, isCartAutoUpgrading
 }) => {
     const [floatingTexts, setFloatingTexts] = useState<{ id: number; amount: number }[]>([]);
     const resourceMap = useMemo(() => new Map(resources.map(r => [r.id, r])), [resources]);
@@ -112,12 +120,25 @@ const Ground: React.FC<GroundProps> = ({
                 <div className="bg-slate-800/80 rounded-md px-3 py-1 text-sm text-white font-semibold w-full shadow-inner">
                     Storage: {formatNumber(totalElevatorStorage)}
                 </div>
-                <UpgradeButton 
-                    onClick={onUpgradeElevator} 
-                    cost={elevatorUpgradeCost}
-                    disabled={cash < elevatorUpgradeCost}
-                    formatNumber={formatNumber}
-                />
+                <div className="w-full space-y-1">
+                    <UpgradeButton
+                        onClick={onUpgradeElevator}
+                        cost={elevatorUpgradeCost}
+                        disabled={cash < elevatorUpgradeCost}
+                        formatNumber={formatNumber}
+                    />
+                    <button
+                        onClick={onToggleElevatorAutoUpgrade}
+                        aria-pressed={isElevatorAutoUpgrading}
+                        className={`w-full py-1.5 text-xs font-bold rounded-md border transition-colors duration-150 ${
+                            isElevatorAutoUpgrading
+                                ? 'bg-purple-500 text-white border-purple-300 shadow-md'
+                                : 'bg-black/30 text-gray-200 border-black/40 hover:bg-black/40'
+                        }`}
+                    >
+                        AUTO {isElevatorAutoUpgrading ? 'ON' : 'OFF'}
+                    </button>
+                </div>
             </div>
 
             {/* Pipeline Panel */}
@@ -156,12 +177,25 @@ const Ground: React.FC<GroundProps> = ({
                  <div className="bg-slate-800/80 rounded-md px-3 py-1 text-sm text-white font-semibold w-full shadow-inner">
                     Load: {formatNumber(getTotalResourceCount(cart.load))}
                 </div>
-                <UpgradeButton
-                    onClick={onUpgradeCart}
-                    cost={cartUpgradeCost}
-                    disabled={cash < cartUpgradeCost}
-                    formatNumber={formatNumber}
-                />
+                <div className="w-full space-y-1">
+                    <UpgradeButton
+                        onClick={onUpgradeCart}
+                        cost={cartUpgradeCost}
+                        disabled={cash < cartUpgradeCost}
+                        formatNumber={formatNumber}
+                    />
+                    <button
+                        onClick={onToggleCartAutoUpgrade}
+                        aria-pressed={isCartAutoUpgrading}
+                        className={`w-full py-1.5 text-xs font-bold rounded-md border transition-colors duration-150 ${
+                            isCartAutoUpgrading
+                                ? 'bg-purple-500 text-white border-purple-300 shadow-md'
+                                : 'bg-black/30 text-gray-200 border-black/40 hover:bg-black/40'
+                        }`}
+                    >
+                        AUTO {isCartAutoUpgrading ? 'ON' : 'OFF'}
+                    </button>
+                </div>
             </div>
 
             {/* Market Panel */}
@@ -197,12 +231,25 @@ const Ground: React.FC<GroundProps> = ({
                  <div className="bg-blue-600 text-white text-sm font-bold rounded-md py-1 px-4 w-full shadow-sm">
                     LEVEL {market.level}
                 </div>
-                <UpgradeButton 
-                    onClick={onUpgradeMarket} 
-                    cost={marketUpgradeCost} 
-                    formatNumber={formatNumber} 
-                    disabled={cash < marketUpgradeCost} 
-                />
+                <div className="w-full space-y-1">
+                    <UpgradeButton
+                        onClick={onUpgradeMarket}
+                        cost={marketUpgradeCost}
+                        formatNumber={formatNumber}
+                        disabled={cash < marketUpgradeCost}
+                    />
+                    <button
+                        onClick={onToggleMarketAutoUpgrade}
+                        aria-pressed={isMarketAutoUpgrading}
+                        className={`w-full py-1.5 text-xs font-bold rounded-md border transition-colors duration-150 ${
+                            isMarketAutoUpgrading
+                                ? 'bg-purple-500 text-white border-purple-300 shadow-md'
+                                : 'bg-black/30 text-gray-200 border-black/40 hover:bg-black/40'
+                        }`}
+                    >
+                        AUTO {isMarketAutoUpgrading ? 'ON' : 'OFF'}
+                    </button>
+                </div>
             </div>
         </div>
     );
