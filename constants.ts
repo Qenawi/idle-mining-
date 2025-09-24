@@ -92,6 +92,7 @@ export const INITIAL_GAME_STATE: GameState = {
         unlockedSkills: [],
     },
     resources: initialResources,
+    autoUpgradeTarget: null,
 };
 
 // --- Skill Definitions ---

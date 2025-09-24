@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { GameState, MineShaftState, ElevatorState, MarketState, MineShaftSkill, ElevatorSkill, MarketSkill, ModalManagerInfo, UpgradeAmount, UpgradeModalInfo, CartState, CartSkill } from './types';
+import { GameState, MineShaftState, ElevatorState, MarketState, MineShaftSkill, ElevatorSkill, MarketSkill, ModalManagerInfo, UpgradeAmount, UpgradeModalInfo, CartState, CartSkill, AutoUpgradeTarget } from './types';
 import { GAME_TICK_MS, MINE_SHAFT_SKILLS, ELEVATOR_SKILLS, MARKET_SKILLS, ELEVATOR_MANAGER_BONUS, MARKET_MANAGER_BONUS, CART_SKILLS, CART_MANAGER_BONUS, MAX_SHAFTS } from './constants';
 import Header from './components/Header';
 import MineShaftComponent from './components/MineShaft';
@@ -64,8 +64,60 @@ const App: React.FC = () => {
     const [aiTipError, setAiTipError] = useState<string | null>(null);
 
     const lastTickRef = useRef<number>(Date.now());
-    const { cash, mineShafts, elevator, cart, market, resources } = gameState;
+    const { cash, mineShafts, elevator, cart, market, resources, autoUpgradeTarget } = gameState;
     const resourceMap = useMemo(() => new Map(resources.map(r => [r.id, r])), [resources]);
+
+    const isSameAutoTarget = (current: AutoUpgradeTarget | null, target: AutoUpgradeTarget): boolean => {
+        if (!current) return false;
+        if (current.type !== target.type || current.subject !== target.subject) return false;
+        if (current.type === 'mineshaft' && target.type === 'mineshaft') {
+            return current.id === target.id;
+        }
+        return true;
+    };
+
+    const toggleAutoUpgradeTarget = (target: AutoUpgradeTarget) => {
+        const currentTarget = gameManager.getAutoUpgradeTarget();
+        if (isSameAutoTarget(currentTarget, target)) {
+            gameManager.setAutoUpgradeTarget(null);
+        } else {
+            gameManager.setAutoUpgradeTarget(target);
+        }
+        setGameState({ ...gameManager.getState() });
+    };
+
+    const managerInfoToTarget = (info: ModalManagerInfo): AutoUpgradeTarget => {
+        if (info.type === 'mineshaft') {
+            return { type: 'mineshaft', id: info.data.id, subject: 'manager' };
+        }
+        if (info.type === 'elevator') {
+            return { type: 'elevator', subject: 'manager' };
+        }
+        if (info.type === 'market') {
+            return { type: 'market', subject: 'manager' };
+        }
+        return { type: 'cart', subject: 'manager' };
+    };
+
+    const handleToggleManagerAutoUpgrade = (info: ModalManagerInfo) => {
+        toggleAutoUpgradeTarget(managerInfoToTarget(info));
+    };
+
+    const handleToggleShaftAutoUpgrade = (shaftId: number) => {
+        toggleAutoUpgradeTarget({ type: 'mineshaft', id: shaftId, subject: 'level' });
+    };
+
+    const handleToggleElevatorAutoUpgrade = () => {
+        toggleAutoUpgradeTarget({ type: 'elevator', subject: 'level' });
+    };
+
+    const handleToggleMarketAutoUpgrade = () => {
+        toggleAutoUpgradeTarget({ type: 'market', subject: 'level' });
+    };
+
+    const handleToggleCartAutoUpgrade = () => {
+        toggleAutoUpgradeTarget({ type: 'cart', subject: 'level' });
+    };
 
     useEffect(() => {
         lastTickRef.current = Date.now();
@@ -390,6 +442,8 @@ const App: React.FC = () => {
                             detailModalManager.type === 'cart' ? { description: 'Increases pipeline transport capacity.', value: `+${(detailModalManager.data.managerLevel * CART_MANAGER_BONUS * 100).toFixed(0)}%`} :
                             { description: 'Increases value of sold resources.', value: `+${(detailModalManager.data.managerLevel * MARKET_MANAGER_BONUS * 100).toFixed(0)}%` }
                         }
+                        isAutoUpgradingManager={isSameAutoTarget(autoUpgradeTarget, managerInfoToTarget(detailModalManager))}
+                        onToggleAutoUpgrade={() => handleToggleManagerAutoUpgrade(detailModalManager)}
                         formatNumber={formatNumber}
                         cash={cash}
                     />
@@ -407,7 +461,7 @@ const App: React.FC = () => {
                     clearAiTip={() => { setAiTip(null); setAiTipError(null); }}
                 />
                 
-                <Ground 
+                <Ground
                     market={market}
                     elevator={elevator}
                     cart={cart}
@@ -417,12 +471,18 @@ const App: React.FC = () => {
                     onOpenMarketManagerDetails={() => setDetailModalManager({ type: 'market', data: market })}
                     onOpenElevatorManagerDetails={() => setDetailModalManager({ type: 'elevator', data: elevator })}
                     onOpenCartManagerDetails={() => setDetailModalManager({ type: 'cart', data: cart })}
+                    onToggleMarketAutoUpgrade={handleToggleMarketAutoUpgrade}
+                    onToggleElevatorAutoUpgrade={handleToggleElevatorAutoUpgrade}
+                    onToggleCartAutoUpgrade={handleToggleCartAutoUpgrade}
                     marketUpgradeCost={gameManager.getMarketUpgradeCost(market.level)}
                     elevatorUpgradeCost={gameManager.getElevatorUpgradeCost(elevator.level)}
                     cartUpgradeCost={gameManager.getCartUpgradeCost(cart.level)}
                     formatNumber={formatNumber}
                     cash={cash}
                     resources={resources}
+                    isMarketAutoUpgrading={isSameAutoTarget(autoUpgradeTarget, { type: 'market', subject: 'level' })}
+                    isElevatorAutoUpgrading={isSameAutoTarget(autoUpgradeTarget, { type: 'elevator', subject: 'level' })}
+                    isCartAutoUpgrading={isSameAutoTarget(autoUpgradeTarget, { type: 'cart', subject: 'level' })}
                 />
 
                 <main className="flex-grow flex relative overflow-y-auto">
@@ -452,10 +512,12 @@ const App: React.FC = () => {
                                             onOpenManagerDetails={() => setDetailModalManager({ type: 'mineshaft', data: shaft })}
                                             upgradeCost={singleUpgradeCost}
                                             managerBonusMultiplier={gameManager.getManagerBonusMultiplier()}
-                                            production={gameManager.getShaftProduction(shaft)} 
+                                            production={gameManager.getShaftProduction(shaft)}
                                             maxResources={gameManager.getShaftCapacity(shaft)}
                                             formatNumber={formatNumber}
                                             upgradeDisabled={cash < singleUpgradeCost}
+                                            isAutoUpgrading={isSameAutoTarget(autoUpgradeTarget, { type: 'mineshaft', id: shaft.id, subject: 'level' })}
+                                            onToggleAutoUpgrade={() => handleToggleShaftAutoUpgrade(shaft.id)}
                                         />
                                     </div>
                                 );

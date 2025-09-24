@@ -1,5 +1,14 @@
 import { Resource } from './services/resourceService';
 
+// --- Auto Upgrade ---
+export type AutoUpgradeSubject = 'level' | 'manager';
+
+export type AutoUpgradeTarget =
+    | { type: 'mineshaft'; id: number; subject: AutoUpgradeSubject }
+    | { type: 'elevator'; subject: AutoUpgradeSubject }
+    | { type: 'market'; subject: AutoUpgradeSubject }
+    | { type: 'cart'; subject: AutoUpgradeSubject };
+
 // --- Skills ---
 export enum MineShaftSkill {
     GEOLOGISTS_EYE = 'geologists-eye',
@@ -95,6 +104,7 @@ export interface GameState {
     cart: CartState;
     market: MarketState;
     resources: Resource[];
+    autoUpgradeTarget: AutoUpgradeTarget | null;
 }
 
 // --- UI Types ---

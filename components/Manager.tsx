@@ -7,6 +7,7 @@ interface ManagerProps {
 
 const getManagerIconStyle = (level: number) => {
     if (level === 0) return 'grayscale opacity-70';
+    if (level >= 200) return 'drop-shadow-[0_0_12px_rgba(167,139,250,0.85)] text-purple-300';
     if (level >= 100) return 'drop-shadow-[0_0_10px_rgba(236,72,153,0.8)] text-pink-400';
     if (level >= 50) return 'drop-shadow-[0_0_8px_rgba(250,204,21,0.7)] text-yellow-300';
     if (level >= 10) return 'drop-shadow-[0_0_6px_rgba(59,130,246,0.6)] text-blue-400';
