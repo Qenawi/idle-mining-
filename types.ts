@@ -34,6 +34,8 @@ export enum MarketSkill {
     EFFICIENT_LOGISTICS = 'efficient-logistics',
 }
 
+export type SkillLevels<T extends string> = Partial<Record<T, number>>;
+
 // --- Game State ---
 export type ResourceMap = { [resourceId: string]: number };
 
@@ -45,7 +47,7 @@ export interface MineShaftState {
     y: number;
     managerLevel: number;
     skillPoints: number;
-    unlockedSkills: MineShaftSkill[];
+    skillLevels: SkillLevels<MineShaftSkill>;
 }
 
 export enum ElevatorStatus {
@@ -65,7 +67,7 @@ export interface ElevatorState {
     targetShaftId: number | null;
     managerLevel: number;
     skillPoints: number;
-    unlockedSkills: ElevatorSkill[];
+    skillLevels: SkillLevels<ElevatorSkill>;
     actionTimer?: number;
 }
 
@@ -85,7 +87,7 @@ export interface CartState {
     actionTimer?: number;
     managerLevel: number;
     skillPoints: number;
-    unlockedSkills: CartSkill[];
+    skillLevels: SkillLevels<CartSkill>;
 }
 
 export interface MarketState {
@@ -94,7 +96,7 @@ export interface MarketState {
     lastDepositAmount: number;
     managerLevel: number;
     skillPoints: number;
-    unlockedSkills: MarketSkill[];
+    skillLevels: SkillLevels<MarketSkill>;
 }
 
 export interface GameState {

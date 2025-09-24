@@ -34,13 +34,33 @@ export const loadGame = (): SavedGame | null => {
 
                 parsed.gameState.mineShafts.forEach((shaft: any) => {
                     if (shaft.skillPoints === undefined) shaft.skillPoints = 0;
-                    if (shaft.unlockedSkills === undefined) shaft.unlockedSkills = [];
+                    if (shaft.skillLevels === undefined) {
+                        shaft.skillLevels = {};
+                    }
+                    if (Array.isArray(shaft.unlockedSkills)) {
+                        shaft.unlockedSkills.forEach((skill: string) => {
+                            if (shaft.skillLevels[skill] === undefined) {
+                                shaft.skillLevels[skill] = 1;
+                            }
+                        });
+                        delete shaft.unlockedSkills;
+                    }
                     if (shaft.resourceId === undefined) shaft.resourceId = parsed.gameState.resources[0].id;
                 });
 
                 if (parsed.gameState.elevator) {
                     if (parsed.gameState.elevator.skillPoints === undefined) parsed.gameState.elevator.skillPoints = 0;
-                    if (parsed.gameState.elevator.unlockedSkills === undefined) parsed.gameState.elevator.unlockedSkills = [];
+                    if (parsed.gameState.elevator.skillLevels === undefined) {
+                        parsed.gameState.elevator.skillLevels = {};
+                    }
+                    if (Array.isArray(parsed.gameState.elevator.unlockedSkills)) {
+                        parsed.gameState.elevator.unlockedSkills.forEach((skill: string) => {
+                            if (parsed.gameState.elevator.skillLevels[skill] === undefined) {
+                                parsed.gameState.elevator.skillLevels[skill] = 1;
+                            }
+                        });
+                        delete parsed.gameState.elevator.unlockedSkills;
+                    }
                     if (parsed.gameState.elevator.storage === undefined) parsed.gameState.elevator.storage = {};
                     // Convert old `load: number` to `load: ResourceMap`
                     if (typeof parsed.gameState.elevator.load === 'number') {
@@ -57,7 +77,17 @@ export const loadGame = (): SavedGame | null => {
 
                 if (parsed.gameState.market) {
                     if (parsed.gameState.market.skillPoints === undefined) parsed.gameState.market.skillPoints = 0;
-                    if (parsed.gameState.market.unlockedSkills === undefined) parsed.gameState.market.unlockedSkills = [];
+                    if (parsed.gameState.market.skillLevels === undefined) {
+                        parsed.gameState.market.skillLevels = {};
+                    }
+                    if (Array.isArray(parsed.gameState.market.unlockedSkills)) {
+                        parsed.gameState.market.unlockedSkills.forEach((skill: string) => {
+                            if (parsed.gameState.market.skillLevels[skill] === undefined) {
+                                parsed.gameState.market.skillLevels[skill] = 1;
+                            }
+                        });
+                        delete parsed.gameState.market.unlockedSkills;
+                    }
                     // Convert old `resources: number` to `resources: ResourceMap`
                     if (typeof parsed.gameState.market.resources === 'number') {
                         const defaultResourceId = parsed.gameState.resources[0].id;
@@ -74,13 +104,21 @@ export const loadGame = (): SavedGame | null => {
                         status: CartStatus.Idle,
                         managerLevel: 0,
                         skillPoints: 0,
-                        unlockedSkills: [],
+                        skillLevels: {},
                     };
                 } else {
                     // Migration: Add manager fields to existing cart
                     if (parsed.gameState.cart.managerLevel === undefined) parsed.gameState.cart.managerLevel = 0;
                     if (parsed.gameState.cart.skillPoints === undefined) parsed.gameState.cart.skillPoints = 0;
-                    if (parsed.gameState.cart.unlockedSkills === undefined) parsed.gameState.cart.unlockedSkills = [];
+                    if (parsed.gameState.cart.skillLevels === undefined) parsed.gameState.cart.skillLevels = {};
+                    if (Array.isArray(parsed.gameState.cart.unlockedSkills)) {
+                        parsed.gameState.cart.unlockedSkills.forEach((skill: string) => {
+                            if (parsed.gameState.cart.skillLevels[skill] === undefined) {
+                                parsed.gameState.cart.skillLevels[skill] = 1;
+                            }
+                        });
+                        delete parsed.gameState.cart.unlockedSkills;
+                    }
                 }
 
                 if (parsed.gameState.autoUpgradeTarget === undefined) {
