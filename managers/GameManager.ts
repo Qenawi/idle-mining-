@@ -32,6 +32,7 @@ import {
     OVERCLOCKED_PUMPS_SPEED_BONUS,
     REINFORCED_PIPES_CAPACITY_BONUS,
     MATTER_DUPLICATOR_CHANCE,
+    MAX_SKILL_LEVEL,
     MAX_SHAFTS,
     MARKET_INSIGHT_VALUE_BONUS,
 } from '../constants';
@@ -87,6 +88,35 @@ export class GameManager {
         return Object.values(resourceMap).reduce((sum, count) => sum + count, 0);
     }
 
+    private getSkillLevel<T extends string>(skillLevels: Partial<Record<T, number>> | undefined, skill: T): number {
+        return skillLevels?.[skill] ?? 0;
+    }
+
+    private getAdditiveMultiplier(base: number, level: number): number {
+        if (level <= 0) return 1;
+        return 1 + (base - 1) * level;
+    }
+
+    private getScaledChance(baseChance: number, level: number): number {
+        if (level <= 0) return 0;
+        return Math.min(1, baseChance * level);
+    }
+
+    private getTimeReductionMultiplier(baseReduction: number, level: number): number {
+        if (level <= 0) return 1;
+        const extraPerLevel = baseReduction / MAX_SKILL_LEVEL;
+        const totalReduction = baseReduction + (level - 1) * extraPerLevel;
+        return Math.max(0.1, 1 - totalReduction);
+    }
+
+    private getDepositTimeMultiplier(level: number): number {
+        if (level <= 0) return 1;
+        const baseReduction = 0.6;
+        const perLevelBonus = 0.1;
+        const totalReduction = baseReduction + (level - 1) * perLevelBonus;
+        return Math.max(0, 1 - totalReduction);
+    }
+
     public getState = (): GameState => {
         return this.gameState;
     }
@@ -134,25 +164,28 @@ export class GameManager {
     public getShaftProduction = (shaft: MineShaftState): number => {
         const baseProduction = 10 * Math.pow(10, shaft.id);
         let production = (baseProduction * shaft.level) * (1 + shaft.managerLevel * MANAGER_BONUS_MULTIPLIER);
-        if (shaft.unlockedSkills.includes(MineShaftSkill.ADVANCED_MACHINERY)) {
-            production *= ADVANCED_MACHINERY_PROD_BONUS;
+        const machineryLevel = this.getSkillLevel(shaft.skillLevels, MineShaftSkill.ADVANCED_MACHINERY);
+        if (machineryLevel > 0) {
+            production *= this.getAdditiveMultiplier(ADVANCED_MACHINERY_PROD_BONUS, machineryLevel);
         }
         return production;
     }
-    
+
     public getShaftCapacity = (shaft: MineShaftState): number => {
         const baseCapacity = 1000 * Math.pow(10, shaft.id);
         let capacity = baseCapacity * shaft.level;
-        if (shaft.unlockedSkills.includes(MineShaftSkill.DEEPER_VEINS)) {
-            capacity *= DEEPER_VEINS_STORAGE_BONUS;
+        const storageLevel = this.getSkillLevel(shaft.skillLevels, MineShaftSkill.DEEPER_VEINS);
+        if (storageLevel > 0) {
+            capacity *= this.getAdditiveMultiplier(DEEPER_VEINS_STORAGE_BONUS, storageLevel);
         }
         return capacity;
     }
 
     public getElevatorCapacity = (elevator: ElevatorState): number => {
         let capacity = 100 * elevator.level;
-        if (elevator.unlockedSkills.includes(ElevatorSkill.REINFORCED_FRAME)) {
-            capacity *= REINFORCED_FRAME_CAPACITY_BONUS;
+        const frameLevel = this.getSkillLevel(elevator.skillLevels, ElevatorSkill.REINFORCED_FRAME);
+        if (frameLevel > 0) {
+            capacity *= this.getAdditiveMultiplier(REINFORCED_FRAME_CAPACITY_BONUS, frameLevel);
         }
         return capacity;
     }
@@ -160,42 +193,47 @@ export class GameManager {
     public getElevatorStorageCapacity = (elevator: ElevatorState): number => 1000 * elevator.level;
     public getCartCapacity = (cart: CartState): number => {
         let capacity = 150 * cart.level * (1 + cart.managerLevel * CART_MANAGER_BONUS);
-        if (cart.unlockedSkills.includes(CartSkill.REINFORCED_PIPES)) {
-            capacity *= REINFORCED_PIPES_CAPACITY_BONUS;
+        const reinforcementLevel = this.getSkillLevel(cart.skillLevels, CartSkill.REINFORCED_PIPES);
+        if (reinforcementLevel > 0) {
+            capacity *= this.getAdditiveMultiplier(REINFORCED_PIPES_CAPACITY_BONUS, reinforcementLevel);
         }
         return capacity;
     }
-    
+
     private getCartSpeed = (cart: CartState): number => {
         let speed = CART_SPEED;
-        if (cart.unlockedSkills.includes(CartSkill.OVERCLOCKED_PUMPS)) {
-            speed *= OVERCLOCKED_PUMPS_SPEED_BONUS;
+        const pumpLevel = this.getSkillLevel(cart.skillLevels, CartSkill.OVERCLOCKED_PUMPS);
+        if (pumpLevel > 0) {
+            speed *= this.getAdditiveMultiplier(OVERCLOCKED_PUMPS_SPEED_BONUS, pumpLevel);
         }
         return speed;
     }
 
     public getElevatorSpeed = (elevator: ElevatorState): number => {
         let speed = ELEVATOR_SPEED * (1 + elevator.managerLevel * ELEVATOR_MANAGER_BONUS);
-        if (elevator.unlockedSkills.includes(ElevatorSkill.LIGHTWEIGHT_MATERIALS)) {
-            speed *= LIGHTWEIGHT_MATERIALS_SPEED_BONUS;
+        const lightweightLevel = this.getSkillLevel(elevator.skillLevels, ElevatorSkill.LIGHTWEIGHT_MATERIALS);
+        if (lightweightLevel > 0) {
+            speed *= this.getAdditiveMultiplier(LIGHTWEIGHT_MATERIALS_SPEED_BONUS, lightweightLevel);
         }
         return speed;
     }
-    
+
     private getElevatorActionTime = (elevator: ElevatorState): number => {
         let time = ELEVATOR_ACTION_TIME;
-        if (elevator.unlockedSkills.includes(ElevatorSkill.EXPRESS_LOAD)) {
-            time *= EXPRESS_LOAD_TIME_REDUCTION;
+        const expressLevel = this.getSkillLevel(elevator.skillLevels, ElevatorSkill.EXPRESS_LOAD);
+        if (expressLevel > 0) {
+            time *= this.getTimeReductionMultiplier(1 - EXPRESS_LOAD_TIME_REDUCTION, expressLevel);
         }
         return time;
     }
-    
+
     public getMarketValueMultiplier = (market: MarketState): number => {
         let multiplier = 1 + (market.level - 1) * 0.01; // 1% per level above 1
         multiplier += market.managerLevel * MARKET_MANAGER_BONUS;
-        
-        if (market.unlockedSkills.includes(MarketSkill.EXPANDED_STORAGE)) {
-            multiplier *= MARKET_INSIGHT_VALUE_BONUS;
+
+        const insightLevel = this.getSkillLevel(market.skillLevels, MarketSkill.EXPANDED_STORAGE);
+        if (insightLevel > 0) {
+            multiplier *= this.getAdditiveMultiplier(MARKET_INSIGHT_VALUE_BONUS, insightLevel);
         }
         return multiplier;
     }
@@ -318,9 +356,14 @@ export class GameManager {
             const maxResources = this.getShaftCapacity(shaft);
             shaft.resources = Math.min(maxResources, shaft.resources + production * deltaTime);
 
-            if (shaft.unlockedSkills.includes(MineShaftSkill.GEOLOGISTS_EYE) && Math.random() < GEOLOGIST_EYE_CHANCE) {
-                const bonusCash = production * this.getResourceValue(shaft.resourceId) * GEOLOGIST_EYE_MULTIPLIER;
-                state.cash += bonusCash;
+            const geologistLevel = this.getSkillLevel(shaft.skillLevels, MineShaftSkill.GEOLOGISTS_EYE);
+            if (geologistLevel > 0) {
+                const chance = this.getScaledChance(GEOLOGIST_EYE_CHANCE, geologistLevel);
+                if (Math.random() < chance) {
+                    const bonusMultiplier = GEOLOGIST_EYE_MULTIPLIER * geologistLevel;
+                    const bonusCash = production * this.getResourceValue(shaft.resourceId) * bonusMultiplier;
+                    state.cash += bonusCash;
+                }
             }
         });
         
@@ -518,8 +561,12 @@ export class GameManager {
                         if (spaceInCart <= 0) break;
                         let amountToCollect = Math.min(elevator.storage[resourceId], spaceInCart);
 
-                        if (cart.unlockedSkills.includes(CartSkill.MATTER_DUPLICATOR) && Math.random() < MATTER_DUPLICATOR_CHANCE) {
-                            amountToCollect *= 2;
+                        const duplicatorLevel = this.getSkillLevel(cart.skillLevels, CartSkill.MATTER_DUPLICATOR);
+                        if (duplicatorLevel > 0) {
+                            const duplicateChance = this.getScaledChance(MATTER_DUPLICATOR_CHANCE, duplicatorLevel);
+                            if (Math.random() < duplicateChance) {
+                                amountToCollect *= 2;
+                            }
                         }
                         amountToCollect = Math.min(elevator.storage[resourceId], amountToCollect);
 
@@ -541,32 +588,36 @@ export class GameManager {
                 if (cart.x >= CART_TRAVEL_DISTANCE) {
                     cart.x = CART_TRAVEL_DISTANCE;
                     cart.status = CartStatus.Depositing;
-                    cart.actionTimer = CART_ACTION_TIME;
+                    const logisticsLevel = this.getSkillLevel(market.skillLevels, MarketSkill.EFFICIENT_LOGISTICS);
+                    const depositMultiplier = this.getDepositTimeMultiplier(logisticsLevel);
+                    cart.actionTimer = CART_ACTION_TIME * depositMultiplier;
                 }
                 break;
-            
+
             case CartStatus.Depositing:
-                const isInstantDeposit = market.unlockedSkills.includes(MarketSkill.EFFICIENT_LOGISTICS);
-                if (!isInstantDeposit) {
-                    cart.actionTimer! -= (deltaTime * 1000);
+                if (cart.actionTimer !== undefined) {
+                    cart.actionTimer -= (deltaTime * 1000);
                 }
-            
-                if (isInstantDeposit || (cart.actionTimer && cart.actionTimer <= 0)) {
+
+                if (cart.actionTimer === undefined || cart.actionTimer <= 0) {
                     let cashGained = 0;
                     const valueMultiplier = this.getMarketValueMultiplier(market);
-            
+                    const negotiatorLevel = this.getSkillLevel(market.skillLevels, MarketSkill.MASTER_NEGOTIATOR);
+                    const negotiatorChance = this.getScaledChance(MASTER_NEGOTIATOR_CHANCE, negotiatorLevel);
+
                     for (const resourceId in cart.load) {
                         const amount = cart.load[resourceId];
                         if (amount > 0) {
                             let value = amount * this.getResourceValue(resourceId) * valueMultiplier;
-                            
-                            if (market.unlockedSkills.includes(MarketSkill.MASTER_NEGOTIATOR) && Math.random() < MASTER_NEGOTIATOR_CHANCE) {
-                                value *= MASTER_NEGOTIATOR_MULTIPLIER;
+
+                            if (negotiatorLevel > 0 && Math.random() < negotiatorChance) {
+                                const bonusMultiplier = MASTER_NEGOTIATOR_MULTIPLIER + ((negotiatorLevel - 1) * 0.5);
+                                value *= bonusMultiplier;
                             }
                             cashGained += value;
                         }
                     }
-                    
+
                     if (cashGained > 0) {
                         this.gameState.cash += cashGained;
                         market.lastDepositAmount = cashGained;
@@ -623,10 +674,13 @@ export class GameManager {
     
     public unlockShaftSkill(shaftId: number, skill: MineShaftSkill) {
         const shaft = this.gameState.mineShafts.find(s => s.id === shaftId);
-        if (shaft && shaft.skillPoints > 0 && !shaft.unlockedSkills.includes(skill)) {
-            shaft.skillPoints -= 1;
-            shaft.unlockedSkills.push(skill);
-        }
+        if (!shaft || shaft.skillPoints <= 0) return;
+
+        const currentLevel = this.getSkillLevel(shaft.skillLevels, skill);
+        if (currentLevel >= MAX_SKILL_LEVEL) return;
+
+        shaft.skillPoints -= 1;
+        shaft.skillLevels[skill] = currentLevel + 1;
     }
 
     public addShaft(): void {
@@ -647,7 +701,7 @@ export class GameManager {
                 y: SHAFT_POSITION_Y_OFFSET + (newShaftId * SHAFT_POSITION_Y_INCREMENT),
                 managerLevel: 0,
                 skillPoints: 0,
-                unlockedSkills: [],
+                skillLevels: {},
             };
             this.gameState.mineShafts.push(newShaft);
         }
@@ -674,10 +728,13 @@ export class GameManager {
     
     public unlockElevatorSkill(skill: ElevatorSkill) {
         const elevator = this.gameState.elevator;
-        if (elevator.skillPoints > 0 && !elevator.unlockedSkills.includes(skill)) {
-            elevator.skillPoints -= 1;
-            elevator.unlockedSkills.push(skill);
-        }
+        if (elevator.skillPoints <= 0) return;
+
+        const currentLevel = this.getSkillLevel(elevator.skillLevels, skill);
+        if (currentLevel >= MAX_SKILL_LEVEL) return;
+
+        elevator.skillPoints -= 1;
+        elevator.skillLevels[skill] = currentLevel + 1;
     }
 
     public upgradeMarket(amount: UpgradeAmount): void {
@@ -701,10 +758,13 @@ export class GameManager {
     
     public unlockMarketSkill(skill: MarketSkill) {
         const market = this.gameState.market;
-        if (market.skillPoints > 0 && !market.unlockedSkills.includes(skill)) {
-            market.skillPoints -= 1;
-            market.unlockedSkills.push(skill);
-        }
+        if (market.skillPoints <= 0) return;
+
+        const currentLevel = this.getSkillLevel(market.skillLevels, skill);
+        if (currentLevel >= MAX_SKILL_LEVEL) return;
+
+        market.skillPoints -= 1;
+        market.skillLevels[skill] = currentLevel + 1;
     }
 
     public upgradeCart(amount: UpgradeAmount): void {
@@ -728,9 +788,12 @@ export class GameManager {
 
     public unlockCartSkill(skill: CartSkill) {
         const cart = this.gameState.cart;
-        if (cart.skillPoints > 0 && !cart.unlockedSkills.includes(skill)) {
-            cart.skillPoints -= 1;
-            cart.unlockedSkills.push(skill);
-        }
+        if (cart.skillPoints <= 0) return;
+
+        const currentLevel = this.getSkillLevel(cart.skillLevels, skill);
+        if (currentLevel >= MAX_SKILL_LEVEL) return;
+
+        cart.skillPoints -= 1;
+        cart.skillLevels[skill] = currentLevel + 1;
     }
 }

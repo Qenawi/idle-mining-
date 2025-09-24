@@ -3,6 +3,7 @@ import { generateResources } from './services/resourceService';
 
 export const GAME_TICK_MS = 100;
 export const MAX_SHAFTS = 12;
+export const MAX_SKILL_LEVEL = 5;
 
 export const BASE_SHAFT_COST = 100;
 export const SHAFT_COST_MULTIPLIER = 20; // Increased to balance 10x production
@@ -60,7 +61,16 @@ const initialResources = generateResources(MAX_SHAFTS); // Generate resources fo
 export const INITIAL_GAME_STATE: GameState = {
     cash: 1000,
     mineShafts: [
-        { id: 0, level: 1, resources: 0, resourceId: initialResources[0].id, y: SHAFT_POSITION_Y_OFFSET, managerLevel: 0, skillPoints: 0, unlockedSkills: [] },
+        {
+            id: 0,
+            level: 1,
+            resources: 0,
+            resourceId: initialResources[0].id,
+            y: SHAFT_POSITION_Y_OFFSET,
+            managerLevel: 0,
+            skillPoints: 0,
+            skillLevels: {},
+        },
     ],
     elevator: {
         level: 1,
@@ -72,7 +82,7 @@ export const INITIAL_GAME_STATE: GameState = {
         targetShaftId: null,
         managerLevel: 0,
         skillPoints: 0,
-        unlockedSkills: [],
+        skillLevels: {},
     },
     cart: {
         level: 1,
@@ -81,7 +91,7 @@ export const INITIAL_GAME_STATE: GameState = {
         status: CartStatus.Idle,
         managerLevel: 0,
         skillPoints: 0,
-        unlockedSkills: [],
+        skillLevels: {},
     },
     market: {
         level: 1,
@@ -89,7 +99,7 @@ export const INITIAL_GAME_STATE: GameState = {
         lastDepositAmount: 0,
         managerLevel: 0,
         skillPoints: 0,
-        unlockedSkills: [],
+        skillLevels: {},
     },
     resources: initialResources,
     autoUpgradeTarget: null,
@@ -97,25 +107,25 @@ export const INITIAL_GAME_STATE: GameState = {
 
 // --- Skill Definitions ---
 export const MINE_SHAFT_SKILLS = [
-    { id: MineShaftSkill.GEOLOGISTS_EYE, name: "Geologist's Eye", description: "2% chance on production to find a gem worth 50x this shaft's p/s." },
-    { id: MineShaftSkill.DEEPER_VEINS, name: "Deeper Veins", description: "Doubles the maximum resource storage of this shaft." },
-    { id: MineShaftSkill.ADVANCED_MACHINERY, name: "Advanced Machinery", description: "Increases this shaft's production by a permanent 25%." }
+    { id: MineShaftSkill.GEOLOGISTS_EYE, name: "Geologist's Eye", description: "Adds a 2% chance per level to discover gems worth 50x production times the skill level." },
+    { id: MineShaftSkill.DEEPER_VEINS, name: "Deeper Veins", description: "Increases this shaft's storage capacity by 100% per level." },
+    { id: MineShaftSkill.ADVANCED_MACHINERY, name: "Advanced Machinery", description: "Boosts this shaft's production by 25% per level." }
 ];
 
 export const ELEVATOR_SKILLS = [
-    { id: ElevatorSkill.EXPRESS_LOAD, name: "Express Load", description: "Reduces resource collection and deposit time by 50%." },
-    { id: ElevatorSkill.LIGHTWEIGHT_MATERIALS, name: "Lightweight Materials", description: "Increases the elevator's base movement speed by 20%." },
-    { id: ElevatorSkill.REINFORCED_FRAME, name: "Reinforced Frame", description: "Increases the elevator's carrying capacity by 25%." }
+    { id: ElevatorSkill.EXPRESS_LOAD, name: "Express Load", description: "Cuts elevator collect/deposit time—50% at level 1 and faster with each level." },
+    { id: ElevatorSkill.LIGHTWEIGHT_MATERIALS, name: "Lightweight Materials", description: "Increases the elevator's base movement speed by 20% per level." },
+    { id: ElevatorSkill.REINFORCED_FRAME, name: "Reinforced Frame", description: "Increases the elevator's carrying capacity by 25% per level." }
 ];
 
 export const CART_SKILLS = [
-    { id: CartSkill.OVERCLOCKED_PUMPS, name: "Overclocked Pumps", description: "Increases resource transport speed by 25%." },
-    { id: CartSkill.REINFORCED_PIPES, name: "Reinforced Pipes", description: "Increases pipeline transport capacity by 25%." },
-    { id: CartSkill.MATTER_DUPLICATOR, name: "Matter Duplicator", description: "2% chance on collection to double the resources gathered from elevator storage." }
+    { id: CartSkill.OVERCLOCKED_PUMPS, name: "Overclocked Pumps", description: "Increases pipeline transport speed by 25% per level." },
+    { id: CartSkill.REINFORCED_PIPES, name: "Reinforced Pipes", description: "Increases pipeline transport capacity by 25% per level." },
+    { id: CartSkill.MATTER_DUPLICATOR, name: "Matter Duplicator", description: "Adds a 2% chance per level to double resources collected from the elevator." }
 ];
 
 export const MARKET_SKILLS = [
-    { id: MarketSkill.MASTER_NEGOTIATOR, name: "Master Negotiator", description: "5% chance to sell resources for double their value." },
-    { id: MarketSkill.EXPANDED_STORAGE, name: "Market Insight", description: "Increases the value of all sold resources by a permanent 25%." },
-    { id: MarketSkill.EFFICIENT_LOGISTICS, name: "Logistical Genius", description: "The pipeline cart instantly deposits resources at the market." }
+    { id: MarketSkill.MASTER_NEGOTIATOR, name: "Master Negotiator", description: "Adds a 5% chance per level to negotiate sales worth 2x value plus extra at higher levels." },
+    { id: MarketSkill.EXPANDED_STORAGE, name: "Market Insight", description: "Increases the value of sold resources by 25% per level." },
+    { id: MarketSkill.EFFICIENT_LOGISTICS, name: "Logistical Genius", description: "Reduces pipeline deposit time by 60% at level 1 and reaches instant deposits at max level." }
 ];

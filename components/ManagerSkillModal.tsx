@@ -1,5 +1,6 @@
 import React from 'react';
 import { MineShaftState, ElevatorState, MarketState, MineShaftSkill, ElevatorSkill, MarketSkill, CartState, CartSkill } from '../types';
+import { MAX_SKILL_LEVEL } from '../constants';
 import { 
     ManagerIcon, SkillGeologistIcon, SkillDeeperVeinsIcon, SkillAdvancedMachineryIcon,
     SkillExpressLoadIcon, SkillLightweightMaterialsIcon, SkillReinforcedFrameIcon,
@@ -55,7 +56,7 @@ const ManagerSkillModal: React.FC<ManagerSkillModalProps> = ({ isOpen, onClose, 
     if (!isOpen) return null;
 
     const { data } = managerInfo;
-    const unlockedSkills = data.unlockedSkills || [];
+    const skillLevels = data.skillLevels || {};
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -76,12 +77,16 @@ const ManagerSkillModal: React.FC<ManagerSkillModalProps> = ({ isOpen, onClose, 
                 <div className="space-y-3">
                     <h3 className="text-lg font-semibold text-gray-300 border-b border-gray-600 pb-1">Skills</h3>
                     {skills.map(skill => {
-                        // FIX: Cast `unlockedSkills` to a common type (`string[]`) to resolve a TypeScript issue
-                        // with using `.includes()` on a union of different array types.
-                        const isUnlocked = (unlockedSkills as string[]).includes(skill.id);
-                        const canUnlock = data.skillPoints > 0;
+                        const level = (skillLevels as Record<string, number>)[skill.id] ?? 0;
+                        const isUnlocked = level > 0;
+                        const canUpgrade = data.skillPoints > 0 && level < MAX_SKILL_LEVEL;
                         const Icon = SKILL_ICONS[skill.id];
-                        
+                        const buttonLabel = level >= MAX_SKILL_LEVEL
+                            ? 'Maxed'
+                            : isUnlocked
+                                ? 'Upgrade'
+                                : 'Unlock';
+
                         return (
                             <div key={skill.id} className={`flex items-center p-2 rounded-md ${isUnlocked ? 'bg-green-500/10' : 'bg-gray-700/50'}`}>
                                 <div className={`flex-shrink-0 w-12 h-12 rounded-md flex items-center justify-center mr-3 ${isUnlocked ? 'bg-green-500/20' : 'bg-gray-800/60'}`}>
@@ -90,16 +95,17 @@ const ManagerSkillModal: React.FC<ManagerSkillModalProps> = ({ isOpen, onClose, 
                                 <div className="flex-grow">
                                     <p className={`font-bold ${isUnlocked ? 'text-green-300' : 'text-white'}`}>{skill.name}</p>
                                     <p className="text-xs text-gray-400">{skill.description}</p>
+                                    <p className="text-xs text-gray-300 mt-1">Level {level}/{MAX_SKILL_LEVEL}</p>
                                 </div>
                                 <button
                                     onClick={() => onUnlockSkill(skill.id)}
-                                    disabled={isUnlocked || !canUnlock}
+                                    disabled={!canUpgrade}
                                     className="ml-4 px-3 py-1 text-sm font-bold rounded-md transition-colors duration-200 disabled:cursor-not-allowed
                                         bg-yellow-500 text-black hover:bg-yellow-400
                                         disabled:bg-gray-600 disabled:text-gray-400 disabled:hover:bg-gray-600
                                     "
                                 >
-                                    {isUnlocked ? 'Unlocked' : 'Unlock'}
+                                    {buttonLabel}
                                 </button>
                             </div>
                         );
